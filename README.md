@@ -1,5 +1,5 @@
 # ask
-a bash script that facilitates discussion with Ollama models. Note that this script also produces formatted files meant to be visualized on obsidian (or any other software that allows to visualize both markdown and latex).
+a bash script that facilitates discussion with Ollama models (especially for Deepseek-R1 which allows to toggle reasoning). Note that this script also produces formatted files meant to be visualized on obsidian (or any other software that allows to visualize both markdown and latex).
 The base folder will be created in ~/.ask.
 
 ## Requirements
