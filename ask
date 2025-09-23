@@ -303,7 +303,7 @@ create_if_missing() {
             throw_error "ask" "No read/write permissions on \"$1\"."
         fi
 
-        if [[ ! -z "$2" && -s "$1" ]]; then
+        if [[ ! -z "$2" && ! -s "$1" ]]; then
             echo -e "$2" > "$1"
             echo "Reinitialized \"$1\" with default contents."
         fi
