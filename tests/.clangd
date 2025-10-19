@@ -1,0 +1,7 @@
+CompileFlags:
+  Add:  [
+    "-std=c++20",
+    "-xc++",
+    "-D_POSIX_C_SOURCE=200809L",
+    "-D_DEFAULT_SOURCE"
+  ]

@@ -1,0 +1,16 @@
+# executables
+tests/test
+bin/ask
+
+# folder contents
+build/
+build/*
+bin/
+bin/*
+
+# Makefile helper file
+.script_hash
+# Test filesystem
+tests/assets
+
+github

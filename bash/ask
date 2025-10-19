@@ -1,0 +1,869 @@
+#!/bin/bash
+
+# "1,2,5-6"
+# ".:1,2,5-6"
+# ".:1-5,7; test:5,7"
+# ".:1-5,7;test:5,7"
+# "1-5,7;test:5,7"
+# $1 = "indices"
+# parse_indices() {
+
+# }
+
+# $1 = from
+# $2 = msg
+throw_error() {
+    echo "error: $1: $2" >&2
+    exit 1
+}
+
+if [[ ! $(command -v ollama) ]]; then
+    throw_error "ask" "ollama not found."
+fi
+
+# $1 = "target_file"
+# $2 = "jq json"
+write_json() {
+    local tmp_file="$(mktemp)"
+    if [[ ! -e "$tmp_file" ]]; then
+        throw_error "write_json" "Couldn't create temp file."
+    fi
+
+    jq "$2" "$1" > "$tmp_file" && mv "$tmp_file" "$1"
+}
+
+declare -g BASE_DIR="$HOME/.ask"
+declare -g ALLOWED_PARENTDIR=$(readlink -f "$BASE_DIR")
+declare -g TARGETDIR="$ALLOWED_PARENTDIR"
+
+declare NAME_DOTCONVERSATION=".ask.conversation"
+declare NAME_DOTASK=".ask"
+declare NAME_DATA="data.json"
+declare NAME_HISTORY="history.md"
+declare NAME_UNFORMATTED_HISTORY="unformatted_history.md"
+declare NAME_PROMPT="prompt.md"
+declare NAME_SAVED="saved"
+
+declare -g DIR_SAVED="$TARGETDIR/$NAME_SAVED"
+declare -g FILE_DATA="$TARGETDIR/$NAME_DATA"
+declare -g FILE_DOTASK="$TARGETDIR/$NAME_DOTASK"
+declare -g FILE_HISTORY="$TARGETDIR/$NAME_HISTORY"
+declare -g FILE_UNFORMATTED_HISTORY="$TARGETDIR/$NAME_UNFORMATTED_HISTORY"
+declare -g FILE_PROMPT="$TARGETDIR/$NAME_PROMPT"
+
+declare -g DEFAULT_CONTENTS_DATA="{\"prompts\":[],\"from\":\"\",\"model\":\"\"}"
+declare -g DEFAULT_CONTENTS_DOTASK="{\"model\":\"\",\"output_md\":true,\"explain_flags\":true,\"aliases\":[]}"
+# so that in obsidian the first line would not be an html-formatted timestamp which, when focused,
+# is displayed as plain html.
+declare -g DEFAULT_CONTENTS_HISTORY="\n"
+
+declare -g me_color="lightcoral"
+declare -g you_color="#7fb8f0"
+
+declare -i passed_flag_F=0
+declare -i passed_flag_C=0
+declare -i passed_flag_L=0
+declare -i passed_flag_H=0
+declare -i passed_flag_z=0
+declare -i passed_flag_P=0
+declare -ig passed_flag_N=0
+declare -i passed_flag_O=0
+
+declare -ga model_ids
+mapfile -t model_ids < <(ollama list | awk '{if(NR>1)print $1}')
+declare -g model_count=${#model_ids[@]}
+
+declare -g OLLAMA_MODEL=""
+declare -g OUTPUT_MD=""
+declare -g EXPLAIN_FLAGS=""
+declare -ga ALIASES
+
+declare -g DATE_FORMAT="+%d/%m %H:%M"
+
+declare history_string=""
+declare history_JSON=""
+declare context_string=""
+declare flag_explanation_string=""
+
+declare timestamp=$(date +%s)
+declare time=$(date -d @$timestamp "$DATE_FORMAT")
+declare prompt=""
+declare context=""
+declare history=""
+declare reasoning=false
+
+declare full_prompt=""
+declare tmp_file
+declare answer
+
+################################################################################################
+# FUNCTIONS THAT DO NOT DEPEND ON $TARGETDIR
+################################################################################################
+
+# pairs of ($example_command, $description)
+# omittable $additional_info
+throw_error_w_usage_examples() {
+    if [ "$#" -eq 0 ]; then
+        throw_error "throw_error_w_usage_examples" "No arguments provided."
+    fi
+
+    local has_additional_info=0
+    local additional_info
+
+    local count
+    if [ $(($# % 2)) -ne 0 ]; then
+        has_additional_info=1
+        additional_info=${@: -1}
+        count=$(($# - 1))
+    else
+        count=$#
+    fi
+
+    echo "error: expected usage:" >&2
+
+    for ((i=0; i<"$count"; i+=2)); do
+        echo "    ${@: !((i+1))}    ${@: !((i+2))}" >&2
+    done
+
+    if [[ has_additional_info -eq 1 ]]; then
+        echo ""  >&2
+        echo -e "  $additional_info" >&2
+    fi
+
+    exit 1
+}
+
+request_action_confirmation() {
+    read -p "$1. Are you sure? (y/n): " choice
+    case "$choice" in
+        y|Y)
+            ;;
+        *) 
+            echo "Aborting..."; 
+            exit 0
+            ;;
+    esac
+}
+
+is_safe_dir() {
+    if [[ "$1" == "$ALLOWED_PARENTDIR"* ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# $1 = "history"
+# $2 = "context"
+# $3 = "prompt"
+format_prompt() {
+    echo -e "${1}${2}Question:\n$3"
+}
+
+# $1 = "textContent"
+# $2 = "color"
+span() {
+    echo "<span style='color: $2; padding: 2px 5px; font-weight:bold; font-size: 30px;'>$1</span>"
+}
+
+################################################################################################
+# HANDLE FLAGS
+################################################################################################
+
+if [[ "$1" = "folder" ]]; then
+    if [[ -z "$2" ]]; then
+        echo "$TARGETDIR"
+    elif [[ "$2" = "saved" ]]; then
+        echo "$TARGETDIR/$NAME_SAVED"
+    elif [[ "$2" = ".ask" ]]; then
+        echo "$TARGETDIR/$NAME_DOTASK"
+    elif [[ "$2" = "prompt" ]]; then
+        echo "$TARGETDIR/$NAME_PROMPT"
+    elif [[ "$2" = "history" ]]; then
+        echo "$TARGETDIR/$NAME_HISTORY"
+    elif [[ "$2" = "unformatted_history" ]]; then
+        echo "$TARGETDIR/$NAME_UNFORMATTED_HISTORY"
+    elif [[ "$2" = "data" ]]; then
+        echo "$TARGETDIR/$NAME_DATA"
+    fi
+    exit 0
+fi
+
+while getopts "hFLCTHPzNO" opt; do
+    case $opt in
+        h)
+            echo "ask:         if no files were provided, uses last argument as prompt."
+            echo "             creates 4 files in \$target_dir: $NAME_PROMPT, $NAME_UNFORMATTED_HISTORY,"
+            echo "             $NAME_HISTORY, $NAME_DOTASK."
+            echo
+            echo " - example usage:"
+            echo "       ask -C \"What is jpeg?\"                      # concise answer from CLI"
+            echo "       ask -F                                      # question using $NAME_PROMPT"
+            echo "       ask -T \"How to protect an apache2 server?\"  # answer with reasoning" 
+            echo "       ask -CH \"What was my first question?\"       # answer using full conversation history"
+            echo "       ask -L \"What drivers do I need?\"            # answer using your system specs"
+            echo
+            echo " - flags:"
+            echo "       -h    displays this message."
+            echo "       -F    specifies to use the contents of the '\$target_dir/$NAME_PROMPT' file as prompt."
+            echo "       -L    adds to the context the system specs."
+            echo "       -C    adds to the context to give concise answers."
+            echo "       -T    specifies to use the reasoning engine."
+            echo "       -H    adds to the context the whole conversation stored in '\$target_dir/$NAME_UNFORMATTED_HISTORY'."
+            echo "       -z    adds to the context only the last q&a from the conversation stored in '\$target_dir/$NAME_UNFORMATTED_HISTORY'."
+            echo "       -P    echoes to console the full prompt passed to the IA model"
+            echo "       -N    specifies to not save this question to '\$target_dir/$NAME_DATA'."
+            echo "       -O    specifies to not save this question and write the output only to terminal".
+            # echo "       -s               specifies to save this conversation before resetting the current active conversation."
+            echo
+            echo " - options:"
+            echo "       setup                interactive model & settings selection."
+            echo "       settings             interactive settings selection."
+            echo "       new                  saves the current conversation and resets the current one."
+            echo "       list                 displays the list of all saved conversations, stored in '\$target_dir/$NAME_SAVED/'"
+            echo "       load <name|ind>      sets the specified conversation as the current one"
+            echo "       save <name>          saves the current conversation in '\$target_dir/$NAME_SAVED/'"
+            echo "       remove <name|ind>    removes the specified conversation from '\$target_dir/$NAME_SAVED/'"
+            echo "       folder               returns the folder \$target_dir used by the command"    
+            echo "       clear                clears the current conversation"  
+            exit 1
+            ;;
+        F)
+            passed_flag_F=1
+            ;;
+        C)
+            passed_flag_C=1
+            ;;
+        L)
+            passed_flag_L=1
+            ;;
+        T)
+            reasoning=true
+            ;;
+        H)
+            passed_flag_H=1
+            ;;
+        z)
+            passed_flag_z=1
+            ;;
+        P)
+            passed_flag_P=1
+            ;;
+        N)
+            passed_flag_N=1
+            ;;
+        O)
+            passed_flag_O=1
+            ;;
+        \?)
+            echo -e "use the -h flag to check all available options." >&2
+            exit 1
+            ;;
+     esac
+done
+
+shift $(($OPTIND - 1))
+
+################################################################################################
+# HANDLE INITIALIZATION
+################################################################################################
+
+# $1 = "target_file"
+# $2 = "default contents"
+create_if_missing() {
+    if [[ -e "$1" ]]; then
+        if [[ ! -w "$1" || ! -r "$1" ]]; then
+            throw_error "ask" "No read/write permissions on \"$1\"."
+        fi
+
+        if [[ ! -z "$2" && ! -s "$1" ]]; then
+            echo -e "$2" > "$1"
+            echo "Reinitialized \"$1\" with default contents."
+        fi
+        return
+    fi
+
+    if [ $(touch "$1" && echo -e "$2" > "$1") ]; then
+        throw_error "ask" "Couldn't create \"$1\"."
+    fi
+}
+
+if [ $(mkdir -p "$TARGETDIR" "$DIR_SAVED") ]; then
+    throw_error "ask" "Couldn't create the necessary folders."
+fi
+
+create_if_missing "$FILE_DOTASK"              "$DEFAULT_CONTENTS_DOTASK"
+create_if_missing "$FILE_HISTORY"             "$DEFAULT_CONTENTS_HISTORY"
+create_if_missing "$FILE_UNFORMATTED_HISTORY" ""
+create_if_missing "$FILE_PROMPT"              ""
+create_if_missing "$FILE_DATA"                "$DEFAULT_CONTENTS_DATA"
+
+OLLAMA_MODEL="$(jq -r '.model' "$FILE_DOTASK")"
+OUTPUT_MD="$(jq -r '.output_md' "$FILE_DOTASK")"
+EXPLAIN_FLAGS="$(jq -r '.explain_flags' "$FILE_DOTASK")"
+
+ollama_model_selection() {
+    if [[ "$model_count" -eq 0 ]]; then
+        throw_error "ask" "No ollama models installed."
+    fi
+
+    local -a model_sizes model_size_units
+    mapfile -t model_sizes < <(ollama list | awk '{if(NR>1)print $3}')
+    mapfile -t model_size_units < <(ollama list | awk '{if(NR>1)print $4}')
+
+    echo -e "Available ollama models:"
+    for i in "${!model_ids[@]}"; do
+        echo "[$i] ${model_ids[$i]} (${model_sizes[$i]} ${model_size_units[$i]})"
+    done
+
+    read -p "Enter the index of the model that you want to use [0-$((model_count-1))]: " choice
+    if [[ ! "$choice" =~ ^[0-9]+$ ]]; then
+        throw_error "ask" "You must specify a number."
+    elif [[ "$choice" -lt 0 || "$choice" -gt $((model_count-1)) ]]; then
+        throw_error "ask" "Index out of bounds"
+    fi
+
+    write_json "$FILE_DOTASK" '.model = "'${model_ids[$choice]}'"'
+    OLLAMA_MODEL="${model_ids[$choice]}"
+    echo -e "Succesfully selected the \"${model_ids[$choice]}\" model.\n"
+}
+
+settings_selection() {
+    local output_md
+    local explain_flags
+
+    read -p "Should there be a markdown output? (y/n): " output_md
+    case "$output_md" in
+        y|Y)
+            output_md="true"
+            ;;
+        *) 
+            output_md="false"
+            ;;
+    esac
+
+    read -p "Should the flags be explained? (y/n): " explain_flags
+    case "$explain_flags" in
+        y|Y)
+            explain_flags="true"
+            ;;
+        *) 
+            explain_flags="false"
+            ;;
+    esac
+
+    if [[ ! "$output_md" = "$OUTPUT_MD" || ! "$explain_flags" = "$EXPLAIN_FLAGS" ]]; then
+        write_json "$FILE_DOTASK" '.output_md = '$output_md' | .explain_flags = '$explain_flags
+        echo "Settings succesfully updated."
+    else
+        echo "Settings remained unchanged."
+    fi
+}
+
+setup() {
+    if [ $(is_safe_dir "$TARGETDIR") ]; then
+        throw_error "setup" "The specified \$target_dir is not a \"$BASE_DIR\" subdirectory."
+    fi
+
+    if [[ ! -d "$TARGETDIR" ]]; then
+        if [ $(touch "$FILE_PROMPT" "$FILE_UNFORMATTED_HISTORY" "$FILE_HISTORY" "$FILE_DOTASK") ]; then
+            throw_error "setup" "Couldn't create the necessary files."
+        fi
+        echo "$TARGETDIR/: Succesfully initialized the directory."
+    fi
+
+    ollama_model_selection
+    settings_selection
+}
+
+if [[ "$1" = "setup" ]]; then
+    setup
+    exit 0
+elif [[ "$1" = "settings" ]]; then
+    settings_selection
+    exit 0
+fi
+
+################################################################################################
+# VALIDATE $target_dir
+################################################################################################
+
+selected_model_is_invalid() {
+    if [[ -z "$OLLAMA_MODEL" ]]; then
+        return 0
+    elif [[ "${model_ids[*]}" = *"$OLLAMA_MODEL"* ]]; then
+        return 1
+    fi
+    return 0
+}
+
+if [[ ! -e "$TARGETDIR" ]]; then
+    setup
+fi
+
+if selected_model_is_invalid; then
+    ollama_model_selection
+fi
+
+
+################################################################################################
+# FUNCTIONS THAT DEPENDED ON $TARGETDIR
+################################################################################################
+
+is_conversation_dir() {
+    if [[ ! -f "$1/$NAME_PROMPT" || ! -f "$1/$NAME_HISTORY" ||
+          ! -f "$1/$NAME_UNFORMATTED_HISTORY" || ! -f "$1/$NAME_DOTCONVERSATION" ||
+          ! -f "$1/$NAME_DATA" ]]; then
+        return 1;
+    else
+        return 0;
+    fi
+}
+
+retrieve_saved_conversations() {
+    local -a dirs
+    mapfile -t dirs < <(ls -Atr -- $DIR_SAVED)
+
+    for dir in "${dirs[@]}"; do
+        if is_conversation_dir "$DIR_SAVED/$dir"; then
+            echo "$dir"
+        fi
+    done
+}
+
+# $1 = id
+resolve_conversation_path_from_id() {
+    if [[ -z "$1" ]]; then
+        throw_error "resolve_conversation_path_from_id" "No identifrier was provided."
+    fi
+
+    local dir
+    if [[ "$1" =~ ^[0-9]+$ ]]; then
+        local -a dirs
+        # readarray -t dirs < <(retrieve_saved_conversations)
+        mapfile -t dirs < <(retrieve_saved_conversations)
+        local dirname="${dirs[$1]%/}"
+
+        if [[ ! -z "$dirname" ]]; then
+            dir="$DIR_SAVED/$dirname"
+        else
+            throw_error "resolve_conversation_path_from_id" "The specified index is out of bounds."
+        fi
+    elif [[ -d "$DIR_SAVED/$1/" ]]; then
+        dir="$DIR_SAVED/$1"
+    else
+        throw_error "resolve_conversation_path_from_id" "Required either an index or a conversation name."
+    fi
+
+    if is_conversation_dir "$dir"; then
+        echo "$dir"
+    else
+        throw_error "resolve_conversation_path_from_id" "The specified id points to a non-conversation directory '$dir'."
+    fi
+}
+
+# $1 = "target_directory"
+safe_rm_rf() {
+    if is_safe_dir "$1"; then
+        request_action_confirmation "the \"$1\" directory will be deleted"
+
+        if [ $(rm -f "$1/$NAME_DOTCONVERSATION" "$1/$NAME_PROMPT" "$1/$NAME_HISTORY" "$1/$NAME_UNFORMATTED_HISTORY") ]; then
+            throw_error "safe_rm_rf" "Couldn't remove the conversation files."
+        fi
+
+        # The directory is empty
+        if [ ! $(ls -A "$1") ]; then
+            if [ $(rm -rf "$1") ]; then
+                throw_error "safe_rm_rf" "Couldn't remove the \"$1\" directory."
+            fi
+
+            echo "Fully removed \"$1\"."
+        else
+            echo "Removed all ask related files from \"$1\", but couldn't remove it fully because it also contained extraneous files."
+        fi
+    else
+        throw_error "safe_rm_rf" "Prevented remove operation outside of \"$ALLOWED_PARENTDIR\"."
+    fi
+}
+
+stringify() {
+    echo "$1" | sed 's/\\/\\\\/g; s/\"/\\\"/g'
+}
+
+# $1 = "time"
+# $2 = "question"
+# $3 = "context"
+# $4 = "history"
+# $5 = "answer"
+record_question_to_JSON() {
+    write_json "$FILE_DATA" '.prompts += [{"time":'"$1"',"question":"'"$(stringify "$2")"'","context":"'"$(stringify "$3")"'","history":"'"$(stringify "$4")"'","answer":"'"$(stringify "$5")"'","model":"'"$OLLAMA_MODEL"'"}]'
+}
+
+# $1 = "time"
+# $2 = "prompt"
+# $3 = "answer"
+JSON_prompt_to_unformatted() {
+    local not_saved=""
+    if [[ $passed_flag_N -eq 1 ]]; then
+        not_saved="\\[NOT SAVED\\] "
+    fi
+    echo -e "${not_saved}$1\n$2\n\n\nRESPONSE\n$3"
+}
+
+# $1 = "JSON"
+# $2 = "member"
+JS_dot() {
+    echo "$1" | jq '.'"$2"''
+}
+
+raw_JSON_prompt_to_unformatted() {
+    echo -e "$(date -d @$(JS_dot "$1" "time") "$DATE_FORMAT")\n$(JS_dot "$1" "question")\n\n\nRESPONSE\n$(JS_dot "$1" "answer")"
+}
+
+# $1 = "time"
+# $2 = "prompt"
+# $3 = "answer"
+append_to_history_files() {
+    local not_saved=""
+    if [[ $passed_flag_N -eq 1 ]]; then
+        not_saved="[NOT SAVED] "
+    fi
+
+    # <span style="...">$time</span>
+    # $prompt
+    #
+    #
+    # <span style="...">RESPONSE</span>
+    # $response
+    # ---
+    #
+    echo $(span "${not_saved}$1" "$me_color") >> "$FILE_HISTORY"
+    echo "$2" | sed 's/</\\</g; s/>/\\>/g;'  >> "$FILE_HISTORY"
+    echo >> "$FILE_HISTORY"
+    echo >> "$FILE_HISTORY"
+    echo $(span "RESPONSE" "$you_color") >> "$FILE_HISTORY"
+    echo "$3" | sed 's/\\\[/$$/g; s/\\\]/$$/g; s/\\( /$/g; s/ \\)/$/g; s/\\(/$/g; s/\\)/$/g; s/</\\</g; s/>/\\>/g;' >> "$FILE_HISTORY"
+    echo >> "$FILE_HISTORY"
+    echo "---" >> "$FILE_HISTORY"
+    echo >> "$FILE_HISTORY"
+
+    # $time
+    # $prompt
+    #
+    #
+    # RESPONSE
+    # $response
+    # ---
+    #
+    echo -e "$(JSON_prompt_to_unformatted "$1" "$2" "$3")\n\n---\n" >> "$FILE_UNFORMATTED_HISTORY"
+}
+
+################################################################################################
+# PROCESS SAVE/LOAD/LIST AND OTHER KEYWORD ARGUMENTS
+################################################################################################
+
+# $1 = "name"
+# $2 = "force"
+save_conversation() {
+    local conversation_name=""
+    local -i from_json=0
+    if [[ -z "$1" ]]; then
+        local from=$(get_this_conversations_ID)
+        if [[ ! -z "$from" ]]; then
+            conversation_name="$from"
+            from_json=1
+        else
+            read -p "Choose a name for this conversation: " conversation_name
+        fi
+    else
+        conversation_name="$1"
+    fi
+
+    local target_save_dir="$DIR_SAVED/$conversation_name"
+
+    if [[ $from_json -eq 0 && -d "$target_save_dir" && ! "$2" = "true" ]]; then
+        request_action_confirmation "There is already a saved conversation with the \"$conversation_name\" name, this action will override it"
+    elif [[ $from_json -eq 1 && ! -d "$target_save_dir" ]]; then
+        echo "warning: \"$FILE_DATA\" points to a non existent conversation."
+    fi
+
+    if [ $(mkdir -p "$target_save_dir") ]; then
+        throw_error "save_conversation" "Couldn't create the \"$target_save_dir\" folder."
+    fi
+
+    if [[ $from_json -eq 0 ]]; then
+        write_json "$FILE_DATA" '.from = "'$conversation_name'"'
+    fi
+
+    if [ $(cp -f "$FILE_UNFORMATTED_HISTORY" "$target_save_dir/$NAME_UNFORMATTED_HISTORY" &&
+           cp -f "$FILE_HISTORY" "$target_save_dir/$NAME_HISTORY" &&
+           cp -f "$FILE_PROMPT" "$target_save_dir/$NAME_PROMPT" &&
+           cp -f "$FILE_DATA" "$target_save_dir/$NAME_DATA") ]; then
+        throw_error "save_conversation" "Couldn't copy the conversation data."
+    fi
+
+    if [ $(touch "$target_save_dir/$NAME_DOTCONVERSATION") ]; then
+        throw_error "save_conversation" "Couldn't create $NAME_DOTCONVERSATION in \"$target_save_dir\"."
+    fi
+
+    echo "$target_save_dir/: Succesfully saved the conversation."
+
+    exit 0
+}
+
+# $1 = "force"
+clear_conversation() {
+    if [[ ! "$1" = "true" ]]; then
+        request_action_confirmation "The contents of this conversation will be lost"
+    fi
+
+    if [ $(echo "" > "$FILE_UNFORMATTED_HISTORY" &&
+           echo "" > "$FILE_HISTORY" &&
+           echo "" > "$FILE_PROMPT" &&
+           echo "$DEFAULT_CONTENTS_DATA" > "$FILE_DATA") ]; then
+
+        throw_error "clear" "Couldn't clear the file contents."
+    fi
+
+    echo "$TARGETDIR/: Succesfully cleared the current conversation."
+}
+
+get_this_conversations_ID() {
+    echo "$(jq -r '.from' "$FILE_DATA")"
+}
+
+if [[ "$1" = "list" ]]; then
+    if [[ -z "$(ls $DIR_SAVED)" ]]; then
+        echo "No saved conversations."
+        exit 0
+    fi
+
+    declare -a dirs
+    # readarray -t dirs < <(retrieve_saved_conversations)
+    mapfile -t dirs < <(retrieve_saved_conversations)
+
+    for i in "${!dirs[@]}"; do
+        dir_name="$(basename "${dirs[$i]}")"
+        echo "[${i}] ${dir_name}"
+    done
+
+    exit 0
+elif [[ "$1" = "save" ]]; then
+    save_conversation "$2"
+
+    exit 0
+elif [[ "$1" = "load" ]]; then
+    if [[ -z "$2" ]]; then
+        throw_error "load" "Passed empty identifier"
+    fi
+
+    declare target_load_dir=$(resolve_conversation_path_from_id "$2")
+
+    if [[ -z "$target_load_dir" ]]; then
+        exit 1
+    fi
+
+    if [[ ! -s "$FILE_PROMPT" || ! -s "$FILE_HISTORY" || ! -s "$FILE_UNFORMATTED_HISTORY" ]]; then
+        request_action_confirmation "Loading \"$target_load_dir\" will override the current conversation and its contents will be lost"
+    fi
+
+    if [ $(cp -f "$target_load_dir/$NAME_UNFORMATTED_HISTORY" "$FILE_UNFORMATTED_HISTORY" &&
+           cp -f "$target_load_dir/$NAME_HISTORY" "$FILE_HISTORY" &&
+           cp -f "$target_load_dir/$NAME_PROMPT" "$FILE_PROMPT" &&
+           cp -f "$target_load_dir/$NAME_DATA" "$FILE_DATA") ]; then
+        throw_error "load" "Couldn't copy the conversation data."
+    fi
+
+    if [[ ! "$(get_this_conversations_ID)" = "$2" ]]; then
+        echo "warning: the saved conversation data.json pointed to another conversation."
+        write_json "$FILE_DATA" '.from = "'$2'"'
+        cp -f "$FILE_DATA" "$target_load_dir/$NAME_DATA"
+    fi
+
+    echo "$TARGETDIR/: Succesfully loaded conversation from '$target_load_dir'."
+    exit 0
+elif [[ "$1" = "clear" ]]; then
+    clear_conversation
+
+    exit 0
+elif [[ "$1" = "remove" ]]; then
+    declare target_remove_dir=$(resolve_conversation_path_from_id "$2")
+
+    if [[ -z "$target_remove_dir" ]]; then
+        exit 1
+    fi
+
+    safe_rm_rf "$target_remove_dir"
+    exit 0
+elif [[ "$1" = "query" ]]; then
+    if [[ -z "$2" ]]; then
+        jq '.' "$FILE_DATA"
+    elif [[ "$2" = "last" ]]; then
+        raw_JSON_prompt_to_unformatted "$(jq '.prompts[.prompts | length - 1]' "$FILE_DATA")"
+    elif [[ "$2" = "list" ]]; then
+        declare -a questions
+        mapfile -t questions < <(jq '.prompts[].question' "$FILE_DATA")
+        for i in "${!questions[@]}"; do
+            declare question="${questions[$i]:0:90}"
+            if [[ "$question" = "${questions[$i]}" ]]; then
+                echo "[$i] $question"
+            else
+                echo "[$i] $(echo "$question" | sed 's/[[:space:]]*$//')..."
+            fi
+        done
+    fi
+    exit 0
+elif [[ "$1" = "new" ]]; then
+    request_action_confirmation "The contents of this conversation will be lost"
+    save_conversation "$(get_this_conversations_ID)" "true"
+    clear_conversation "true"
+    exit 0
+fi
+
+################################################################################################
+# PROCESS PROMPT
+################################################################################################
+
+# If not using files as input
+if [[ passed_flag_F -eq 0 ]]; then
+    prompt="${@: -1}" # Treat last argument as prompt
+# If using $target_dir/prompt.md as prompt
+else
+    prompt=$(cat "$FILE_PROMPT")
+fi
+
+if [[ -z "$prompt" ]]; then
+    if [[ passed_flag_F -eq 1 ]]; then
+        echo "The default \"$FILE_PROMPT\" file is empty."
+    else
+        echo "No prompt was provided."
+    fi
+    exit 0
+fi
+
+################################################################################################
+# PROCESS HISTORY
+################################################################################################
+
+if [[ passed_flag_z -eq 1 || passed_flag_H -eq 1 ]]; then
+    declare -i invalid_history=0
+
+    if [[ passed_flag_z -eq 1 ]]; then
+        declare question_count=$(jq '.prompts | length' "$FILE_DATA")
+
+        if [[ $question_count -gt 0 ]]; then
+            history="$(raw_JSON_prompt_to_unformatted "$(jq '.prompts['"$(($question_count-1))"']' "$FILE_DATA")")"
+            history_JSON="previous"
+            history_string="Last part of our discussion:"
+        else
+            invalid_history=1
+            echo "specified -z argument, but the history is empty."
+        fi
+    elif [[ passed_flag_H -eq 1 ]]; then
+        history=$(cat "$FILE_UNFORMATTED_HISTORY")
+        history_JSON="all"
+        history_string="History of our discussion:"
+    fi
+
+    if [[ $invalid_history -eq 0 ]]; then
+        history_string="${history_string}\n$history\n\n"
+    fi
+fi
+
+################################################################################################
+# PROCESS CONTEXT
+################################################################################################
+
+if [[ passed_flag_C -eq 1 || passed_flag_L -eq 1 ]]; then
+    context_string="Context: "
+
+    if [[ passed_flag_C -eq 1 ]]; then
+        context="${context}Provide concise answers. "
+    fi
+
+    if [[ passed_flag_L -eq 1 ]]; then
+        context="${context}You are an expert on Fedora Linux systems. Provide technical answers about Fedora. Context: Laptop running on Fedora Workstation 42 Linux with NVIDIA 4090 Laptop GPU and Intel i9-14900HX. "
+    fi
+
+    context_string="${context_string}\n$context\n\n"
+fi
+
+################################################################################################
+# WARNINGS
+################################################################################################
+
+# $1 = "where to append"
+# $2 = "what to append"
+append_to_str() {
+    if [[ -z "$1" ]]; then
+        echo "$2"
+    else
+        echo "${1} | ${2}"
+    fi
+}
+
+if [[ "$EXPLAIN_FLAGS" = "true" ]]; then
+    if [[ passed_flag_F -eq 1 ]]; then
+        flag_explanation_string="(F) prompt from file"
+    fi
+
+    if [[ passed_flag_z -eq 1 ]]; then
+        flag_explanation_string="$(append_to_str "$flag_explanation_string" "(z) last question")"
+    elif [[ passed_flag_H -eq 1 ]]; then
+        flag_explanation_string="$(append_to_str "$flag_explanation_string" "(H) full history")"
+    fi
+
+    if [[ passed_flag_P -eq 1 ]]; then
+        flag_explanation_string="$(append_to_str "$flag_explanation_string" "(P) echo full prompt")"
+    fi
+
+    if [[ passed_flag_O -eq 1 ]]; then
+        flag_explanation_string="$(append_to_str "$flag_explanation_string" "(O) output only to terminal, no save")"
+    elif [[ passed_flag_N -eq 1 ]]; then
+        flag_explanation_string="$(append_to_str "$flag_explanation_string" "(N) no save")"
+    fi
+
+    if [[ ! -z "$flag_explanation_string" ]]; then
+        echo -e "$flag_explanation_string\n"
+    fi
+fi
+
+################################################################################################
+# DISPLAY PROMPT
+################################################################################################
+
+full_prompt=$(format_prompt "$history_string" "$context_string" "$prompt")
+
+if [[ passed_flag_P -eq 1 ]]; then
+    declare br="<<<<<<<<<<<<<<<<<<======>>>>>>>>>>>>>>>>>>"
+    echo -e "\n$br\n<<<<<<<<<<<<<< PROMPT START >>>>>>>>>>>>>>\n$br\n$full_prompt\n$br\n<<<<<<<<<<<<<<  PROMPT END  >>>>>>>>>>>>>>\n$br\n\n"
+fi
+
+tmp_file=$(mktemp)
+if [ ! -e "$tmp_file" ]; then
+    throw_error "ask" "Failed to create a temporary file."
+fi
+
+################################################################################################
+# RUN MODEL
+################################################################################################
+
+ollama run "$OLLAMA_MODEL" --think="$reasoning" "$full_prompt" | tee "$tmp_file"
+
+################################################################################################
+# WRITE Q&A TO FILES
+################################################################################################
+
+answer=$(cat $tmp_file)
+
+if [[ passed_flag_N -eq 0 && passed_flag_O -eq 0 ]]; then
+    record_question_to_JSON "$timestamp" "$prompt" "$context" "$history_JSON" "$answer"
+fi
+
+if [[ "$OUTPUT_MD" = "true" && passed_flag_O -eq 0 ]]; then
+    append_to_history_files "$time" "$prompt" "$answer"
+fi
+
+rm -f "$tmp_file"
+
+

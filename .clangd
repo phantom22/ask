@@ -1,0 +1,8 @@
+CompileFlags:
+  Add: [
+    "-std=c23",
+    "-xc",
+    "-lc",
+    "-D_POSIX_C_SOURCE=200809L",
+    "-D_DEFAULT_SOURCE"
+  ]
