@@ -6,16 +6,19 @@ endif
 
 C_COMPILER = gcc
 CPP_COMPILER = g++
-OPTIMIZATION = -O3 -s -DNDEBUG
+OPTIMIZATION = -O3 -DNDEBUG
 
 # For now using c2x instead of c23
 CFLAGS_MAIN = -std=c2x $(OPTIMIZATION) -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L
 # Note that -DSHELL_SCRIPT_SHA256SUM is also part of $(CFLAGS_TEST) but it's calculated on demand
 # aka only when the tests target is specified.
 CFLAGS_TEST = -std=c++20 $(OPTIMIZATION) -DHOME_DIR=\"$(HOME)\" -DPROJECT_DIR=\"$(CURDIR)\"
-LDFLAGS =
+
 LIBS_MAIN = -lncurses -ljansson -lcrypto
-LIBS_TEST = $(LIBS_MAIN) -lgtest -lgtest_main -pthread
+LDFLAGS_MAIN = -s $(LIBS_MAIN)
+
+LIBS_TEST = -lgtest -lgtest_main -pthread
+LDFLAGS_TEST = -s $(LIBS_MAIN) $(LIBS_TEST)
 
 D_SRC = ask
 D_BUILD = build
@@ -43,23 +46,23 @@ all: $(EXE_MAIN)
 # Link all objects into executable
 $(EXE_MAIN): $(OBJECTS_MAIN)
 	@echo Linking
-	@$(C_COMPILER) $(LDFLAGS) $(LIBDIRS) $^ -o $@ $(LIBS_MAIN)
+	@$(C_COMPILER) $^ $(LDFLAGS_MAIN) -o $@
 	@echo Build complete: $(EXE_MAIN)
 
 # For the c files that are in %D_SRC%
 $(D_BUILD)/%.o: $(D_SRC)/%.c
 	@echo Compiling $<
-	@$(C_COMPILER) $(CFLAGS_MAIN) $(INCLUDEDIRS) -c $< -o $@
+	@$(C_COMPILER) $(CFLAGS_MAIN) -c $< -o $@
 
 # For the c files that are in %D_SRC% subfolders
 $(D_BUILD)/%.o: $(D_SRC)/*/%.c
 	@echo compiling $<
-	@$(C_COMPILER) $(CFLAGS_MAIN) $(INCLUDEDIRS) -c $< -o $@
+	@$(C_COMPILER) $(CFLAGS_MAIN) -c $< -o $@
 
-# Clean build artifacts, suppress errors where there are no artefacts to clean then call make with silent flag
+# Remove previous build artifacts to force a clean make
 clean:
-	@rm -f $(D_BUILD)/*.o 2>&1
-	@rm -f $(D_BIN)/ask 2>&1
+	@rm -f $(CURDIR)/$(D_BUILD)/*.o 2>&1
+	@rm -f $(CURDIR)/$(D_BIN)/ask 2>&1
 	@make -s
 
 tests: $(EXE_TEST)
@@ -77,7 +80,7 @@ $(EXE_TEST): $(SOURCES_TEST)
 # update .script_hash
 	$(if $(HASH),@echo "$(HASH)" > "$(HASH_FILE)",)
 	@echo Compiling and linking $(SOURCES_TEST)
-	@$(CPP_COMPILER) $(CFLAGS_TEST) -DSHELL_SCRIPT_SHA256SUM=\"$(HASH)\" $< -o $@ $(LIBS_TEST) $(LDFLAGS)
+	@$(CPP_COMPILER) $(CFLAGS_TEST) -DSHELL_SCRIPT_SHA256SUM=\"$(HASH)\" $< -o $@ $(LDFLAGS_TEST)
 	@echo Build complete: $(EXE_TEST)
 
 
@@ -99,11 +102,11 @@ cleantests:
 else
 cleantests:
 endif
-	@rm -f $(D_TEST)/test 2>&1
-	@rm -rf $(D_TEST)/assets 2>&1
+	@rm -f $(CURDIR)/$(D_TEST)/test 2>&1
+	@rm -rf $(CURDIR)/$(D_TEST)/assets 2>&1
 	@make -s tests
 
 setup:
-	@chmod +x "$(CURDIR)/bash/ask"
-	@chmod +x "$(CURDIR)/tests/prepare_assets.sh"
+	@chmod +x $(CURDIR)/bash/ask
+	@chmod +x $(CURDIR)/$(D_TEST)/prepare_assets.sh
 	@echo Settings \"bash/ask\" and \"tests/prepare_assets.sh\" as executable scripts.
