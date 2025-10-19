@@ -4,15 +4,23 @@ a bash script that facilitates discussion with Ollama models (especially for Dee
 ## Important
 The shell script, for now, is feature complete and working, while the C implementation is at its beginning stage.
 
+To correctly setup the project you must do this first.
+```shell
+# Chmods the relevant scripts
+# - bash/ask
+# - tests/prepare_assets.sh
+make setup
+```
+
 ## Shell requirements
 - Ollama and at least one local ollama model.
 - jq (probably already installed on your system)
 
 ## Shell usage
 ```shell
- # For a concise answer
+# For a concise answer
 ask -C "What are snaps on Linux?"
- # For a follow-up question
+# For a follow-up question
 ask -z  "And flatpaks and AppImages?"
 # For a question that considers the full conversation
 ask -H "Which is considered more easy to maintain?"
@@ -38,7 +46,7 @@ make clean
 ```
 
 ## C Dependencies
-- OpenSSL (probably already installed on your system)
+- OpenSSL
 - ncurses
 - jansson
 - GTest (only needed for test targets)
