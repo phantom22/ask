@@ -4,61 +4,67 @@ endif
 
 .PHONY: setup clean cleantests all rebuildhash
 
-EXECUTABLE = ask
-TESTEXECUTABLE = test
+C_COMPILER = gcc
+CPP_COMPILER = g++
+OPTIMIZATION = -O3 -s -DNDEBUG
 
-CC = g++
-CFLAGS = -xc -std=c23 -O3 -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L # -s -DNDEBUG
-LDFLAGS = -lc
-LIBS = -lncurses -ljansson -lcrypto
-HASH_FILE := .script_hash
+# For now using c2x instead of c23
+CFLAGS_MAIN = -std=c2x $(OPTIMIZATION) -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L
+# Note that -DSHELL_SCRIPT_SHA256SUM is also part of $(CFLAGS_TEST) but it's calculated on demand
+# aka only when the tests target is specified.
+CFLAGS_TEST = -std=c++20 $(OPTIMIZATION) -DHOME_DIR=\"$(HOME)\" -DPROJECT_DIR=\"$(CURDIR)\"
+LDFLAGS =
+LIBS_MAIN = -lncurses -ljansson -lcrypto
+LIBS_TEST = $(LIBS_MAIN) -lgtest -lgtest_main -pthread
 
-SRCDIR = ask
-BUILDDIR = build
-BINDIR = bin
+D_SRC = ask
+D_BUILD = build
+D_BIN = bin
+D_TEST = tests
 
-TESTSDIR = tests
-TEST = $(TESTSDIR)/tests.cpp
-TESTCFLAGS := -std=c++20 -O3 -DHOME_DIR=\"$(HOME)\" -DPROJECT_DIR=\"$(CURDIR)\"
-TESTLIBS = $(LIBS) -lgtest -lgtest_main -pthread
+HASH_FILE = .script_hash
+
+EXE_MAIN = $(D_BIN)/ask
+EXE_TEST = $(D_TEST)/test
 
 # Recursively find all .c files (Unix/Linux/macOS)
 # the windows part also converts backslashes to forward slashes for consistency
-SOURCES := $(shell find $(SRCDIR) -name '*.c')
+SOURCES_MAIN = $(shell find $(D_SRC) -name '*.c')
+SOURCES_TEST = $(D_TEST)/tests.cpp
 
 # Generate flat object file paths, no preserving folder structure in build/
-OBJECTS = $(addprefix $(BUILDDIR)/, $(notdir $(SOURCES:.c=.o)))
+OBJECTS_MAIN = $(addprefix $(D_BUILD)/, $(notdir $(SOURCES_MAIN:.c=.o)))
 
 $(shell mkdir -p bin build)
 
 # Default target
-all: $(BINDIR)/$(EXECUTABLE)
+all: $(EXE_MAIN)
 
 # Link all objects into executable
-$(BINDIR)/$(EXECUTABLE): $(OBJECTS)
-	@echo linking
-	@$(CC) $(LDFLAGS) $(LIBDIRS) $^ -o $@ $(LIBS)
-	@echo compiled executable at \"$(BINDIR)/$(EXECUTABLE)\"
+$(EXE_MAIN): $(OBJECTS_MAIN)
+	@echo Linking
+	@$(C_COMPILER) $(LDFLAGS) $(LIBDIRS) $^ -o $@ $(LIBS_MAIN)
+	@echo Build complete: $(EXE_MAIN)
 
-# For the c files that are in %SRCDIR%
-$(BUILDDIR)/%.o: $(SRCDIR)/%.c
-	@echo compiling $<
-	@$(CC) $(CFLAGS) $(INCLUDEDIRS) -c $< -o $@
+# For the c files that are in %D_SRC%
+$(D_BUILD)/%.o: $(D_SRC)/%.c
+	@echo Compiling $<
+	@$(C_COMPILER) $(CFLAGS_MAIN) $(INCLUDEDIRS) -c $< -o $@
 
-# For the c files that are in %SRCDIR% subfolders
-$(BUILDDIR)/%.o: $(SRCDIR)/*/%.c
+# For the c files that are in %D_SRC% subfolders
+$(D_BUILD)/%.o: $(D_SRC)/*/%.c
 	@echo compiling $<
-	@$(CC) $(CFLAGS) $(INCLUDEDIRS) -c $< -o $@
+	@$(C_COMPILER) $(CFLAGS_MAIN) $(INCLUDEDIRS) -c $< -o $@
 
 # Clean build artifacts, suppress errors where there are no artefacts to clean then call make with silent flag
 clean:
-	@rm -f $(BUILDDIR)/*.o 2>&1
-	@rm -f $(BINDIR)/$(EXECUTABLE) 2>&1
+	@rm -f $(D_BUILD)/*.o 2>&1
+	@rm -f $(D_BIN)/ask 2>&1
 	@make -s
 
-tests: $(TESTSDIR)/$(TESTEXECUTABLE)
+tests: $(EXE_TEST)
 
-$(TESTSDIR)/$(TESTEXECUTABLE): $(TEST)
+$(EXE_TEST): $(SOURCES_TEST)
 	@touch "$(HASH_FILE)"
 	$(eval HASH := $(shell cat $(HASH_FILE)))
 	$(eval VALID_HASH := $(shell sha256sum tests/prepare_assets.sh | cut -d ' ' -f 1))
@@ -70,8 +76,9 @@ $(TESTSDIR)/$(TESTEXECUTABLE): $(TEST)
 	$(if $(filter true,$(IS_INVALID)),$(info rebuilding contents of $(HASH_FILE).)$(eval HASH := $(VALID_HASH)),)
 # update .script_hash
 	$(if $(HASH),@echo "$(HASH)" > "$(HASH_FILE)",)
-	@$(CC) $(TESTCFLAGS) -DSHELL_SCRIPT_SHA256SUM=\"$(HASH)\" $< -o $@ $(TESTLIBS)
-	@echo compiled executable at \"$(TESTSDIR)/$(TESTEXECUTABLE)\"
+	@echo Compiling and linking $(SOURCES_TEST)
+	@$(CPP_COMPILER) $(CFLAGS_TEST) -DSHELL_SCRIPT_SHA256SUM=\"$(HASH)\" $< -o $@ $(LIBS_TEST) $(LDFLAGS)
+	@echo Build complete: $(EXE_TEST)
 
 
 # if rebuildhash is specified without cleantests, this recipe throws an error
@@ -92,11 +99,11 @@ cleantests:
 else
 cleantests:
 endif
-	@rm -f $(TESTSDIR)/$(TESTEXECUTABLE) 2>&1
-	@rm -rf $(TESTSDIR)/assets 2>&1
+	@rm -f $(D_TEST)/test 2>&1
+	@rm -rf $(D_TEST)/assets 2>&1
 	@make -s tests
 
 setup:
 	@chmod +x "$(CURDIR)/bash/ask"
 	@chmod +x "$(CURDIR)/tests/prepare_assets.sh"
-	@echo Settings \"./bash/ask\" and \"./tests/prepare_assets.sh\" as executables.
+	@echo Settings \"bash/ask\" and \"tests/prepare_assets.sh\" as executable scripts.

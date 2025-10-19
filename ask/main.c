@@ -1,20 +1,8 @@
 //#define ASK_PRINT_GLOBALS
 #include "ask.h"
-#include "filesystem/command.h"
 
-#include <ncurses/ncurses.h>
+#include <ncurses.h>
 #include <jansson.h>
-
-// file_path_t ROOT_DIR;
-
-// void init_constants() {
-//     char* home = getenv("HOME");
-//     sprintf(ROOT_DIR, "%s/.ask", home);
-// }
-
-// void cleanup() {
-//     //free((void*)ROOT_DIR);
-// }
 
 int main() {
     initscr();
