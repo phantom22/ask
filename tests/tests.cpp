@@ -17,7 +17,11 @@
 #include <gtest/gtest.h>
 
 #define ASK_TEST_MODE
-#include "../ask/ask.h"
+// necessary for mixing the source code, which is pure C,
+// with this C++ file
+extern "C" {
+    #include "../ask/ask.h"
+}
 
 #include "utility/helpers.h"
 
@@ -212,7 +216,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    int init_status = init_constants();
+    int init_status = ask_init();
     if (init_status == -1) {
         std::cerr << "Failed to initialize ask." << std::endl;
         exit(1);

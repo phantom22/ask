@@ -2,11 +2,11 @@ ifneq ($(shell uname -s),Linux)
 $(error This Makefile only supports linux.)
 endif
 
-.PHONY: setup clean cleantests all rebuildhash
+.PHONY: setup clean cleantests all rebuildhash resetdir
 
 C_COMPILER = gcc
 CPP_COMPILER = g++
-OPTIMIZATION = -O3 -DNDEBUG
+OPTIMIZATION = -O3
 
 # For now using c2x instead of c23
 CFLAGS_MAIN = -std=c2x $(OPTIMIZATION) -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L
@@ -38,16 +38,14 @@ SOURCES_TEST = $(D_TEST)/tests.cpp
 # Generate flat object file paths, no preserving folder structure in build/
 OBJECTS_MAIN = $(addprefix $(D_BUILD)/, $(notdir $(SOURCES_MAIN:.c=.o)))
 
-$(shell mkdir -p bin build)
-
 # Default target
 all: $(EXE_MAIN)
 
 # Link all objects into executable
 $(EXE_MAIN): $(OBJECTS_MAIN)
 	@echo Linking
-	@$(C_COMPILER) $^ $(LDFLAGS_MAIN) -o $@
-	@echo Build complete: $(EXE_MAIN)
+	@$(C_COMPILER) $^ $(LDFLAGS_MAIN) -o $@ && \
+	echo 'Build complete: $(EXE_MAIN)'
 
 # For the c files that are in %D_SRC%
 $(D_BUILD)/%.o: $(D_SRC)/%.c
@@ -56,16 +54,16 @@ $(D_BUILD)/%.o: $(D_SRC)/%.c
 
 # For the c files that are in %D_SRC% subfolders
 $(D_BUILD)/%.o: $(D_SRC)/*/%.c
-	@echo compiling $<
+	@echo Compiling $<
 	@$(C_COMPILER) $(CFLAGS_MAIN) -c $< -o $@
 
 # Remove previous build artifacts to force a clean make
 clean:
-	@rm -f $(CURDIR)/$(D_BUILD)/*.o 2>&1
-	@rm -f $(CURDIR)/$(D_BIN)/ask 2>&1
+	@rm -f "$(CURDIR)/$(D_BUILD)/*.o" 2>&1
+	@rm -f "$(CURDIR)/$(D_BIN)/ask" 2>&1
 	@make -s
 
-tests: $(EXE_TEST)
+tests: $(OBJECTS_MAIN) $(EXE_TEST)
 
 $(EXE_TEST): $(SOURCES_TEST)
 	@touch "$(HASH_FILE)"
@@ -80,9 +78,8 @@ $(EXE_TEST): $(SOURCES_TEST)
 # update .script_hash
 	$(if $(HASH),@echo "$(HASH)" > "$(HASH_FILE)",)
 	@echo Compiling and linking $(SOURCES_TEST)
-	@$(CPP_COMPILER) $(CFLAGS_TEST) -DSHELL_SCRIPT_SHA256SUM=\"$(HASH)\" $< -o $@ $(LDFLAGS_TEST)
-	@echo Build complete: $(EXE_TEST)
-
+	@$(CPP_COMPILER) $(CFLAGS_TEST) -DSHELL_SCRIPT_SHA256SUM=\"$(HASH)\" $< $(filter-out build/main.o, $(OBJECTS_MAIN)) -o $@ $(LDFLAGS_TEST) && \
+	echo 'Build complete: $(EXE_TEST)'
 
 # if rebuildhash is specified without cleantests, this recipe throws an error
 ifneq (,$(filter cleantests,$(MAKECMDGOALS)))
@@ -102,11 +99,63 @@ cleantests:
 else
 cleantests:
 endif
-	@rm -f $(CURDIR)/$(D_TEST)/test 2>&1
-	@rm -rf $(CURDIR)/$(D_TEST)/assets 2>&1
+	@rm -f "$(CURDIR)/$(D_TEST)/test" 2>&1
+	@rm -rf "$(CURDIR)/$(D_TEST)/assets" 2>&1
+	@make -s clean >/dev/null 2>&1
 	@make -s tests
 
 setup:
-	@chmod +x $(CURDIR)/bash/ask
-	@chmod +x $(CURDIR)/$(D_TEST)/prepare_assets.sh
-	@echo Settings \"bash/ask\" and \"tests/prepare_assets.sh\" as executable scripts.
+	@if ! test -d "$(CURDIR)/$(D_BIN)"; then \
+		mkdir "$(CURDIR)/$(D_BIN)" && \
+		echo 'Created $(D_BIN)/.' || \
+		echo 'Failed to create $(D_BIN)/.'; \
+	fi
+
+	@if ! test -d "$(CURDIR)/$(D_BUILD)"; then \
+		mkdir "$(CURDIR)/$(D_BUILD)" && \
+		echo 'Created $(D_BUILD)/.' || \
+		echo 'Failed to create $(D_BUILD)/.'; \
+	fi
+
+	@if ! test -x "$(CURDIR)/bash/ask"; then \
+		chmod +x "$(CURDIR)/bash/ask" && \
+		echo 'Chmodded bash/ask as executable script.' || \
+		echo 'Failed to chmod bash/ask.'; \
+	fi
+
+	@if ! test -x "$(CURDIR)/$(D_TEST)/prepare_assets.sh"; then \
+		chmod +x "$(CURDIR)/$(D_TEST)/prepare_assets.sh" && \
+		echo 'Chmodded tests/prepare_assets.sh as executable script.' || \
+		echo 'Failed to chmod tests/prepare_assets.sh.'; \
+	fi
+
+resetdir:
+	@if test -d "$(CURDIR)/$(D_BIN)"; then \
+		rm -rf "$(CURDIR)/$(D_BIN)" && \
+		echo 'Removed recursively $(D_BIN)/.' || \
+		echo 'Failed to remove recursively $(D_BIN)/.'; \
+	fi
+
+	@if test -d "$(CURDIR)/$(D_BUILD)"; then \
+		rm -rf "$(CURDIR)/$(D_BUILD)" && \
+		echo 'Removed recursively $(D_BUILD)/.' || \
+		echo 'Failed to remove recursively $(D_BUILD)/.'; \
+	fi
+
+	@if test -f "$(CURDIR)/tests/test"; then \
+		rm -f "$(CURDIR)/tests/test" && \
+		echo 'Removed tests/test executable.' || \
+		echo 'Failed to remove tests/test.'; \
+	fi
+
+	@if test -x "$(CURDIR)/bash/ask"; then \
+		chmod -x "$(CURDIR)/bash/ask" && \
+		echo 'Unchmodded bash/ask.' || \
+		echo 'Failed to unchmod bash/ask.'; \
+	fi
+
+	@if test -x "$(CURDIR)/$(D_TEST)/prepare_assets.sh"; then \
+		chmod -x "$(CURDIR)/$(D_TEST)/prepare_assets.sh" && \
+		echo 'Unchmodded tests/prepare_assets.sh.' || \
+		echo 'Failed to unchmod tests/prepare_assets.sh.'; \
+	fi
