@@ -23,8 +23,8 @@
 #ifndef ASK_H_
 #define ASK_H_
 
-// note that both of these defines are also specified
-// during compilation from the Makefile
+// note that this define is also done
+// during compilation by the Makefile
 #define _POSIX_C_SOURCE 200809L
 
 #include "filesystem/filesystem.h"

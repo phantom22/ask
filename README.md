@@ -8,13 +8,16 @@ The script also can produce formatted files meant to be visualized on Obsidian (
 **The shell script is currently feature complete and working, while the C implementation is at its beginning stage.**
 
 ## Setup
-First of all ```make setup``` chmods the relevant scripts and creates the necessary file system for the C project.
+The program uses the ~/.ask directory to manage the conversations.
 
-While using using the program itself will generate the ~/.ask directory, used to manage the conversations.
-
-**For correct functionality ```ollama``` and at least one local model must be installed.**
+```shell
+# This is REQUIRED to prepare the project's filesystem for compilation
+make setup
+```
 
 ## Dependencies
+*For correct functionality ```ollama``` and at least one local model must be installed.*
+
 Shell dependencies: ```jq```.
 
 C dependencies: ```OpenSSL```, ```ncurses```, ```jansson```, ```GTest``` (only for test targets)
