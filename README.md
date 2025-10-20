@@ -20,7 +20,7 @@ C requirements: ```OpenSSL```, ```ncurses```, ```jansson```, ```GTest``` (only f
 ### Ubuntu
 ```shell
 # To compile the C project
-sudo apt install libncurses5-dev libncursesw5-dev libjansson-dev libgtest-dev
+sudo apt install libssl-dev libncurses5-dev libncursesw5-dev libjansson-dev libgtest-dev
 
 # For the shell script
 sudo apt install jq
@@ -28,7 +28,7 @@ sudo apt install jq
 ### Fedora
 ```shell
 # To compile the C project
-sudo dnf install openssl-devel jansson-devel gtest-devel
+sudo dnf install openssl-devel ncurses-devel jansson-devel gtest-devel
 
 # For the shell script
 sudo dnf install jq

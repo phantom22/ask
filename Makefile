@@ -61,12 +61,12 @@ $(D_BUILD)/%.o: $(D_SRC)/*/%.c
 	@echo Compiling $<
 	@$(C_COMPILER) $(CFLAGS_MAIN) -c $< -o $@
 
-# Duplicate for the target test
+# Duplicate for the test target
 $(D_BUILD)/test/%.o : $(D_SRC)/%.c
 	@echo Compiling $<
 	@$(C_COMPILER) $(CFLAGS_MAIN) -DASK_TEST_MODE -c $< -o $@
 
-# Duplicate for the target test
+# Duplicate for the test target
 $(D_BUILD)/test/%.o: $(D_SRC)/*/%.c
 	@echo Compiling $<
 	@$(C_COMPILER) $(CFLAGS_MAIN) -DASK_TEST_MODE -c $< -o $@
