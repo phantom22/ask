@@ -1,21 +1,23 @@
 # ask
-a bash script that facilitates discussion with Ollama models (especially for Deepseek-R1 which allows toggling reasoning). 
+[![License: GPL v3 with OpenSSL exception](https://img.shields.io/badge/License-GPLv3_OpenSSL-blue.svg)](LICENSE) 
+
+A program that facilitates discussion with Ollama models (especially for Deepseek-R1 which allows toggling reasoning). 
 
 The script also can produce formatted files meant to be visualized on Obsidian (or any other software that allows to visualize both markdown and LaTeX).
 
 **The shell script is currently feature complete and working, while the C implementation is at its beginning stage.**
 
-# Setup
+## Setup
 First of all ```make setup``` chmods the relevant scripts and creates the necessary file system for the C project.
 
 While using using the program itself will generate the ~/.ask directory, used to manage the conversations.
 
 **For correct functionality ```ollama``` and at least one local model must be installed.**
 
-# Installing the dependencies
-Shell requirements: ```jq```.
+## Dependencies
+Shell dependencies: ```jq```.
 
-C requirements: ```OpenSSL```, ```ncurses```, ```jansson```, ```GTest``` (only for test targets)
+C dependencies: ```OpenSSL```, ```ncurses```, ```jansson```, ```GTest``` (only for test targets)
 .
 ### Ubuntu
 ```shell
@@ -34,7 +36,7 @@ sudo dnf install openssl-devel ncurses-devel jansson-devel gtest-devel
 sudo dnf install jq
 ```
 
-# Building
+## Building
 For the main program:
 ```shell
 # to build bin/ask
@@ -69,5 +71,5 @@ ask -O "Why use Linux instead of Windows?"
 ask -F
 ```
 
-# Additional Features
+## Additional Features
 Conversations can be cleared, saved, loaded, and removed. The script has other options that can be viewed with the ```-h``` flag.
