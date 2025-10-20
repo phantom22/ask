@@ -33,10 +33,13 @@ EXE_TEST = $(D_TEST)/test
 # Recursively find all .c files (Unix/Linux/macOS)
 # the windows part also converts backslashes to forward slashes for consistency
 SOURCES_MAIN = $(shell find $(D_SRC) -name '*.c')
-SOURCES_TEST = $(D_TEST)/tests.cpp
+SOURCES_TEST = $(filter-out ask/main.c, $(SOURCES_MAIN))
+
+SOURCE_TEST = $(D_TEST)/tests.cpp
 
 # Generate flat object file paths, no preserving folder structure in build/
 OBJECTS_MAIN = $(addprefix $(D_BUILD)/, $(notdir $(SOURCES_MAIN:.c=.o)))
+OBJECTS_TEST = $(addprefix $(D_BUILD)/test/, $(notdir $(SOURCES_TEST:.c=.o)))
 
 # Default target
 all: $(EXE_MAIN)
@@ -57,16 +60,25 @@ $(D_BUILD)/%.o: $(D_SRC)/*/%.c
 	@echo Compiling $<
 	@$(C_COMPILER) $(CFLAGS_MAIN) -c $< -o $@
 
+
+$(D_BUILD)/test/%.o : $(D_SRC)/%.c
+	@echo Compiling $<
+	@$(C_COMPILER) $(CFLAGS_MAIN) -DASK_TEST_MODE -c $< -o $@
+
+# For the c files that are in %D_SRC% subfolders
+$(D_BUILD)/test/%.o: $(D_SRC)/*/%.c
+	@echo Compiling $<
+	@$(C_COMPILER) $(CFLAGS_MAIN) -DASK_TEST_MODE -c $< -o $@
+
 # Remove previous build artifacts to force a clean make
 clean:
-	@rm -f "$(CURDIR)/$(D_BUILD)/*.o" 2>&1
+	@rm -f $(CURDIR)/$(D_BUILD)/*.o 2>&1
 	@rm -f "$(CURDIR)/$(D_BIN)/ask" 2>&1
 	@make -s
 
-tests: $(OBJECTS_MAIN) $(EXE_TEST)
+tests: $(OBJECTS_TEST) $(EXE_TEST)
 
-$(EXE_TEST): $(SOURCES_TEST)
-	@touch "$(HASH_FILE)"
+$(EXE_TEST): $(SOURCE_TEST)
 	$(eval HASH := $(shell cat $(HASH_FILE)))
 	$(eval VALID_HASH := $(shell sha256sum tests/prepare_assets.sh | cut -d ' ' -f 1))
 	$(eval IS_INVALID := false)
@@ -77,8 +89,8 @@ $(EXE_TEST): $(SOURCES_TEST)
 	$(if $(filter true,$(IS_INVALID)),$(info rebuilding contents of $(HASH_FILE).)$(eval HASH := $(VALID_HASH)),)
 # update .script_hash
 	$(if $(HASH),@echo "$(HASH)" > "$(HASH_FILE)",)
-	@echo Compiling and linking $(SOURCES_TEST)
-	@$(CPP_COMPILER) $(CFLAGS_TEST) -DSHELL_SCRIPT_SHA256SUM=\"$(HASH)\" $< $(filter-out build/main.o, $(OBJECTS_MAIN)) -o $@ $(LDFLAGS_TEST) && \
+	@echo Compiling and linking $(SOURCE_TEST)
+	@$(CPP_COMPILER) $(CFLAGS_TEST) -DSHELL_SCRIPT_SHA256SUM=\"$(HASH)\" $< $(OBJECTS_TEST) -o $@ $(LDFLAGS_TEST) && \
 	echo 'Build complete: $(EXE_TEST)'
 
 # if rebuildhash is specified without cleantests, this recipe throws an error
@@ -101,10 +113,11 @@ cleantests:
 endif
 	@rm -f "$(CURDIR)/$(D_TEST)/test" 2>&1
 	@rm -rf "$(CURDIR)/$(D_TEST)/assets" 2>&1
-	@make -s clean >/dev/null 2>&1
+	@rm -f $(CURDIR)/$(D_BUILD)/test/*.o 2>&1
 	@make -s tests
 
 setup:
+	@touch "$(HASH_FILE)"
 	@if ! test -d "$(CURDIR)/$(D_BIN)"; then \
 		mkdir "$(CURDIR)/$(D_BIN)" && \
 		echo 'Created $(D_BIN)/.' || \
@@ -112,7 +125,7 @@ setup:
 	fi
 
 	@if ! test -d "$(CURDIR)/$(D_BUILD)"; then \
-		mkdir "$(CURDIR)/$(D_BUILD)" && \
+		mkdir "$(CURDIR)/$(D_BUILD)" "$(CURDIR)/$(D_BUILD)/test" && \
 		echo 'Created $(D_BUILD)/.' || \
 		echo 'Failed to create $(D_BUILD)/.'; \
 	fi

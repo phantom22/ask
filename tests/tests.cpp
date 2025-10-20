@@ -16,7 +16,7 @@
 
 #include <gtest/gtest.h>
 
-#define ASK_TEST_MODE
+// #define ASK_TEST_MODE <-- defined by the Makefile
 // necessary for mixing the source code, which is pure C,
 // with this C++ file
 extern "C" {
