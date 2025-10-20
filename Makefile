@@ -8,6 +8,9 @@ C_COMPILER = gcc
 CPP_COMPILER = g++
 OPTIMIZATION = -O3
 
+MAIN_ENTRY_POINT = main.c
+TEST_ENTRY_POINT = tests.cpp
+
 # For now using c2x instead of c23
 CFLAGS_MAIN = -std=c2x $(OPTIMIZATION) -D_DEFAULT_SOURCE -D_POSIX_C_SOURCE=200809L
 # Note that -DSHELL_SCRIPT_SHA256SUM is also part of $(CFLAGS_TEST) but it's calculated on demand
@@ -33,9 +36,7 @@ EXE_TEST = $(D_TEST)/test
 # Recursively find all .c files (Unix/Linux/macOS)
 # the windows part also converts backslashes to forward slashes for consistency
 SOURCES_MAIN = $(shell find $(D_SRC) -name '*.c')
-SOURCES_TEST = $(filter-out ask/main.c, $(SOURCES_MAIN))
-
-SOURCE_TEST = $(D_TEST)/tests.cpp
+SOURCES_TEST = $(filter-out $(D_SRC)/$(MAIN_ENTRY_POINT), $(SOURCES_MAIN))
 
 # Generate flat object file paths, no preserving folder structure in build/
 OBJECTS_MAIN = $(addprefix $(D_BUILD)/, $(notdir $(SOURCES_MAIN:.c=.o)))
@@ -60,12 +61,12 @@ $(D_BUILD)/%.o: $(D_SRC)/*/%.c
 	@echo Compiling $<
 	@$(C_COMPILER) $(CFLAGS_MAIN) -c $< -o $@
 
-
+# Duplicate for the target test
 $(D_BUILD)/test/%.o : $(D_SRC)/%.c
 	@echo Compiling $<
 	@$(C_COMPILER) $(CFLAGS_MAIN) -DASK_TEST_MODE -c $< -o $@
 
-# For the c files that are in %D_SRC% subfolders
+# Duplicate for the target test
 $(D_BUILD)/test/%.o: $(D_SRC)/*/%.c
 	@echo Compiling $<
 	@$(C_COMPILER) $(CFLAGS_MAIN) -DASK_TEST_MODE -c $< -o $@
@@ -78,7 +79,7 @@ clean:
 
 tests: $(OBJECTS_TEST) $(EXE_TEST)
 
-$(EXE_TEST): $(SOURCE_TEST)
+$(EXE_TEST): $(D_TEST)/$(TEST_ENTRY_POINT)
 	$(eval HASH := $(shell cat $(HASH_FILE)))
 	$(eval VALID_HASH := $(shell sha256sum tests/prepare_assets.sh | cut -d ' ' -f 1))
 	$(eval IS_INVALID := false)
@@ -89,7 +90,7 @@ $(EXE_TEST): $(SOURCE_TEST)
 	$(if $(filter true,$(IS_INVALID)),$(info rebuilding contents of $(HASH_FILE).)$(eval HASH := $(VALID_HASH)),)
 # update .script_hash
 	$(if $(HASH),@echo "$(HASH)" > "$(HASH_FILE)",)
-	@echo Compiling and linking $(SOURCE_TEST)
+	@echo Compiling and linking $(D_TEST)/$(TEST_ENTRY_POINT)
 	@$(CPP_COMPILER) $(CFLAGS_TEST) -DSHELL_SCRIPT_SHA256SUM=\"$(HASH)\" $< $(OBJECTS_TEST) -o $@ $(LDFLAGS_TEST) && \
 	echo 'Build complete: $(EXE_TEST)'
 
@@ -143,6 +144,7 @@ setup:
 	fi
 
 resetdir:
+# resetdir won't delete .script_hash, this is intended behavior
 	@if test -d "$(CURDIR)/$(D_BIN)"; then \
 		rm -rf "$(CURDIR)/$(D_BIN)" && \
 		echo 'Removed recursively $(D_BIN)/.' || \

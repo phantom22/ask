@@ -15,7 +15,7 @@ While using using the program itself will generate the ~/.ask directory, used to
 # Installing the dependencies
 Shell requirements: ```jq```.
 
-C requirements: ```OpenSSL```, ```ncurses```, ```jansson```, ```GTest``` (0nly for test targets)
+C requirements: ```OpenSSL```, ```ncurses```, ```jansson```, ```GTest``` (only for test targets)
 .
 ### Ubuntu
 ```shell
