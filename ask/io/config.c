@@ -20,14 +20,8 @@
  * linking with OpenSSL. For complete details, see the LICENSE file
  * in the root directory of this project.
  */
-#ifndef VERIFY_CHECKSUM_H_
-#define VERIFY_CHECKSUM_H_
-#include "../filesystem/filesystem.h"
+#include "config.h"
 
-#define __SHA256_BUFFER_SIZE 4096lu
-#define HEX_CHECKSUM_SIZE 65lu
-typedef char hex_checksum_t[HEX_CHECKSUM_SIZE];
-
-int verify_checksum(file_path_t* path, hex_checksum_t* checksum);
-
-#endif
+int config_get_dot_ask(model_name_t* model, int* output_md, int* explain_flags, aliases_t* aliases, int* alias_count) {
+    return 0;
+}

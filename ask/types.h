@@ -20,24 +20,36 @@
  * linking with OpenSSL. For complete details, see the LICENSE file
  * in the root directory of this project.
  */
-#include "ask.h"
+#ifndef TYPES_H_
+#define TYPES_H_
 
-#include <ncurses.h>
+#define SIZE_FILE_PATH 256u
+typedef char file_path_t[SIZE_FILE_PATH];
 
-int main() {
-    initscr();
-    printw("Hello World! Press any key to exit...");
-    refresh();
-    getch();
-    endwin();
+#define HEX_CHECKSUM_SIZE 65lu
+typedef char hex_checksum_t[HEX_CHECKSUM_SIZE];
 
-    ask_init();
+#define COMMAND_SIZE 128u
+typedef char command_t[COMMAND_SIZE];
 
-    command_output_t output;
-    capture_shell_command("ls -a", &output);
-    printf(" output: \"%s\"\n", output);
+#define COMMAND_OUTPUT_SIZE 8192u
+typedef unsigned char command_output_t[COMMAND_OUTPUT_SIZE];
 
-    ask_cleanup();
+#define OLLAMA_MODEL_SIZE 128u
+typedef char model_name_t[OLLAMA_MODEL_SIZE];
 
-    return 0;
-}   
+#define ALIAS_KEY_SIZE 64u
+typedef char alias_key_t[ALIAS_KEY_SIZE];
+
+#define ALIAS_VALUE_SIZE 1024u
+typedef char alias_value_t[ALIAS_VALUE_SIZE];
+
+struct _alias {
+    alias_key_t key;
+    alias_value_t value;
+};
+
+#define MAX_ALIAS_COUNT 64u
+typedef struct _alias aliases_t[MAX_ALIAS_COUNT];
+
+#endif

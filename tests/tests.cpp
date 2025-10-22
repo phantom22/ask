@@ -20,7 +20,7 @@
  * linking with OpenSSL. For complete details, see the LICENSE file
  * in the root directory of this project.
  */
-#include <cstdio>
+#include <jansson.h>
 #ifndef PROJECT_DIR
 #define PROJECT_DIR ""
 #endif
@@ -39,15 +39,16 @@
 #include <gtest/gtest.h>
 
 // #define ASK_TEST_MODE <-- defined by the Makefile
-// necessary for mixing the source code, which is pure C,
-// with this C++ file
-extern "C" {
-    #include "../ask/ask.h"
-}
+#include "../ask/ask.h"
 
 #include "utility/helpers.h"
 
-file_path_t CORRECT_ROOT_DIR;
+file_path_t DIR_CORRECT_ROOT,
+            DIR_CORRECT_SAVED,
+            FILE_CORRECT_DOT_ASK,
+            FILE_CORRECT_DATA_JSON;
+
+
 TEST(FileSystem, ResolvePath) {
     const char *relative_path_a = "hello",
                *relative_path_b = "hello/there",
@@ -83,13 +84,13 @@ TEST(FileSystem, ResolvePath) {
 TEST(FileSystem, ResolvePathFailCondition) {
     file_path_t absolute_path_a;
 
-    create_string_of_size(path_a,MAX_SUBDIRECTORY_SIZE);
+    create_string_of_size(path_a,SIZE_MAX_SUBDIRECTORY);
     int r1 = filesystem_resolve_path(path_a, &absolute_path_a);
     EXPECT_EQ(r1, 0);
 
     file_path_t absolute_path_b;
 
-    create_string_of_size(path_b,MAX_SUBDIRECTORY_SIZE+1);
+    create_string_of_size(path_b,SIZE_MAX_SUBDIRECTORY+1);
     EXPECT_NE(path_b, nullptr);
     int r2 = filesystem_resolve_path(path_b, &absolute_path_b);
     EXPECT_EQ(r2, -1);
@@ -97,7 +98,7 @@ TEST(FileSystem, ResolvePathFailCondition) {
 }
 
 TEST(FileSystem, IsAllowedPath) {
-    EXPECT_EQ(strcmp(ROOT_DIR, CORRECT_ROOT_DIR), 0);
+    EXPECT_EQ(strcmp(DIR_ROOT, DIR_CORRECT_ROOT), 0);
 
     file_path_t not_allowed = "test/123456";
     EXPECT_EQ(filesystem_is_allowed_path(&not_allowed), 0);
@@ -187,6 +188,100 @@ TEST(File, Open) {
     EXPECT_EQ(d.is_empty, 1);
 }
 
+TEST(Json, Open) {
+    resolve_project_dir(path_a, "tests/assets/json/valid.json");
+    resolve_project_dir(path_b, "tests/assets/json/invalid.json");
+
+    struct file fa = file_open(path_a, 0);
+    ASSERT_EQ(fa.is_valid, 1);
+    struct json_file ja = json_open(&fa);
+    struct file fb = file_open(path_b, 0);
+    ASSERT_EQ(fb.is_valid, 1);
+    struct json_file jb = json_open(&fb);
+
+    EXPECT_EQ(ja.is_valid, 1);
+    EXPECT_EQ(jb.is_valid, 1);
+
+    json_t *valid_bool1, *valid_bool2, *invalid_bool1, *invalid_bool2;
+    json_get_boolean(&ja, "valid_bool1", 0, &valid_bool1);
+    json_get_boolean(&ja, "valid_bool2", 1, &valid_bool2);
+    json_get_boolean(&ja, "invalid_bool1", 1, &invalid_bool1);
+    json_get_boolean(&ja, "invalid_bool2", 0, &invalid_bool2);
+
+    EXPECT_EQ(valid_bool1->type, JSON_TRUE);
+    EXPECT_EQ(valid_bool2->type, JSON_FALSE);
+    EXPECT_EQ(invalid_bool1->type, JSON_TRUE);
+    EXPECT_EQ(invalid_bool2->type, JSON_FALSE);
+    EXPECT_EQ(json_boolean_value(valid_bool1), 1);
+    EXPECT_EQ(json_boolean_value(valid_bool2), 0);
+    EXPECT_EQ(json_boolean_value(invalid_bool1), 1);
+    EXPECT_EQ(json_boolean_value(invalid_bool2), 0);
+
+    json_t *valid_string1, *valid_string2, *invalid_string1, *invalid_string2;
+    json_get_string(&ja, "valid_string1", "default 1", &valid_string1);
+    json_get_string(&ja, "valid_string2", "default 2", &valid_string2);
+    json_get_string(&ja, "invalid_string1", "default 3", &invalid_string1);
+    json_get_string(&ja, "invalid_string2", "default 4", &invalid_string2);
+
+    EXPECT_EQ(valid_string1->type, JSON_STRING);
+    EXPECT_EQ(valid_string2->type, JSON_STRING);
+    EXPECT_EQ(invalid_string1->type, JSON_STRING);
+    EXPECT_EQ(invalid_string2->type, JSON_STRING);
+    EXPECT_EQ(strcmp(json_string_value(valid_string1),""), 0);
+    EXPECT_EQ(strcmp(json_string_value(valid_string2),"test string"), 0);
+    EXPECT_EQ(strcmp(json_string_value(invalid_string1),"default 3"), 0);
+    EXPECT_EQ(strcmp(json_string_value(invalid_string2),"default 4"), 0);
+
+    json_t *valid_array, *invalid_array;
+    json_get_array(&ja, "valid_array", &valid_array);
+    json_get_array(&ja, "invalid_array", &invalid_array);
+    EXPECT_EQ(valid_array->type, JSON_ARRAY);
+    EXPECT_EQ(invalid_array->type, JSON_ARRAY);
+
+    json_close(&ja);
+    EXPECT_EQ(ja.is_valid, 0);
+
+    json_t *before_field_a, *before_field_b, *before_field_c;
+    json_get_boolean(&jb, "field_a", 1, &before_field_a);
+    json_get_string(&jb, "field_b", "my string value", &before_field_b);
+    json_get_array(&jb, "field_c", &before_field_c);
+
+    EXPECT_EQ(before_field_a->type, JSON_TRUE);
+    EXPECT_EQ(before_field_b->type, JSON_STRING);
+    EXPECT_EQ(before_field_c->type, JSON_ARRAY);
+
+    EXPECT_EQ(json_dump(&jb), 0);
+    json_close(&jb);
+    EXPECT_EQ(jb.is_valid, 0);
+
+    file_close(&fa);
+    EXPECT_EQ(fa.is_valid, 0);
+    file_close(&fb);
+    EXPECT_EQ(fb.is_valid, 0);
+
+    struct file fb_again = file_open(path_b, 0);
+    ASSERT_EQ(fb_again.is_valid, 1);
+    struct json_file jb_again = json_open(&fb_again);
+    EXPECT_EQ(jb_again.is_valid, 1);
+
+    json_t *after_field_a, *after_field_b, *after_field_c;
+    json_get_boolean(&jb_again, "field_a", 0, &after_field_a);
+    json_get_string(&jb_again, "field_b", "not my string value", &after_field_b);
+    json_get_array(&jb_again, "field_c", &after_field_c);
+
+    EXPECT_EQ(after_field_a->type, JSON_TRUE);
+    EXPECT_EQ(after_field_b->type, JSON_STRING);
+    EXPECT_EQ(after_field_c->type, JSON_ARRAY);
+
+    EXPECT_EQ(json_boolean_value(after_field_a), 1);
+    EXPECT_EQ(strcmp(json_string_value(after_field_b),"my string value"), 0);
+
+    json_close(&jb_again);
+    EXPECT_EQ(jb_again.is_valid, 0);
+    file_close(&fb_again);
+    EXPECT_EQ(fb_again.is_valid, 0);
+}
+
 int main(int argc, char **argv) {
     if (strcmp(HOME_DIR,"") == 0 || strcmp(PROJECT_DIR,"") == 0 || strcmp(SHELL_SCRIPT_SHA256SUM, "") == 0) {
         std::cerr << "The tests must be compiled with:       " << std::endl 
@@ -200,33 +295,39 @@ int main(int argc, char **argv) {
         return -1;
     }
     else {
-        std::cout << "HOME_DIR: \"" << HOME_DIR << "\"" << std::endl
-                  << "PROJECT_DIR: \"" << PROJECT_DIR << "\"" << std::endl
-                  << "SHELL_SCRIPT_SHA256SUM: \"" << SHELL_SCRIPT_SHA256SUM << "\"" << std::endl;
+        std::cout << "HOME_DIR: '" << HOME_DIR << "'" << std::endl
+                  << "PROJECT_DIR: '" << PROJECT_DIR << "'" << std::endl
+                  << "SHELL_SCRIPT_SHA256SUM: '" << SHELL_SCRIPT_SHA256SUM << "'" << std::endl;
         
-        snprintf(CORRECT_ROOT_DIR, FILE_PATH_SIZE, "%s/.ask", HOME_DIR);
+        int r1 = snprintf(DIR_CORRECT_ROOT, SIZE_FILE_PATH, "%s/.ask", HOME_DIR),
+            r2 = snprintf(DIR_CORRECT_SAVED, SIZE_FILE_PATH, "%s/saved", DIR_CORRECT_ROOT),
+            r3 = snprintf(FILE_CORRECT_DOT_ASK, SIZE_FILE_PATH, "%s/.ask", DIR_CORRECT_ROOT),
+            r4 = snprintf(FILE_CORRECT_DATA_JSON, SIZE_FILE_PATH, "%s/data.json", DIR_CORRECT_ROOT);
 
-        std::cout << "CORRECT_ROOT_DIR: \"" << CORRECT_ROOT_DIR << "\"" << std::endl;
+        if (r1 < 0 || r2 < 0 || r3 < 0 || r4 < 0) {
+            std::cerr << "snprintf failed to resolve the correct dirs!" << std::endl;
+            return 1;
+        }
+
+        std::cout << "DIR_CORRECT_ROOT: '" << DIR_CORRECT_ROOT << "'" << std::endl 
+                  << "DIR_CORRECT_SAVED: '" << DIR_CORRECT_SAVED << "'" << std::endl 
+                  << "FILE_CORRECT_DOT_ASK: '" << FILE_CORRECT_DOT_ASK << "'" << std::endl 
+                  << "FILE_CORRECT_DATA_JSON: '" << FILE_CORRECT_DATA_JSON << "'" << std::endl;
 
         _resolve_project_dir(prepare_assets_sh, "tests/prepare_assets.sh", return 1);
 
         file_path_t full_command;
-        if (snprintf(full_command, FILE_PATH_SIZE, "%s \"%s\"", prepare_assets_sh, PROJECT_DIR) < 0) {
-            std::cerr << "Failed to build the command to run 'tests/prepare_assets.sh'." << std::endl;
+        if (snprintf(full_command, SIZE_FILE_PATH, "%s \"%s\"", prepare_assets_sh, PROJECT_DIR) < 0) {
+            std::cerr << "snprintf failed to build the command to run 'tests/prepare_assets.sh'." << std::endl;
             return 1;
         }
-
-        //std::cout << "full_command: `"<< full_command << "`" << std::endl;
-
-        if (system(full_command) == 1) {
+        else if (system(full_command) == 1) {
             std::cerr << "The shell scrit 'tests/prepare_assets.sh' failed." << std::endl;
             return 1;
         }
-
-        //std::cout << "full_command: `"<< full_command << "`" << std::endl;
-
+        
         hex_checksum_t prepare_assets_hashsum = SHELL_SCRIPT_SHA256SUM;
-        if (!verify_checksum(&prepare_assets_sh, &prepare_assets_hashsum)) {
+        if (!validate_checksum(&prepare_assets_sh, &prepare_assets_hashsum)) {
             std::cerr << "Checksum verification failed on 'prepare_assets.sh'." << std::endl
                       << "Either re-compile with `make rebuildhash cleantests` or find the correct version of the file" << std::endl;
             return 1;

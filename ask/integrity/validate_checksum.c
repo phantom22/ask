@@ -20,7 +20,7 @@
  * linking with OpenSSL. For complete details, see the LICENSE file
  * in the root directory of this project.
  */
-#include "verify_checksum.h"
+#include "validate_checksum.h"
 #include "../filesystem/file.h"
 
 #include <openssl/evp.h>
@@ -31,7 +31,9 @@
 #include <strings.h>
 #include <unistd.h>
 
-int verify_checksum(file_path_t* path, hex_checksum_t* checksum) {
+#define __SHA256_BUFFER_SIZE 4096lu
+
+int validate_checksum(file_path_t* path, hex_checksum_t* checksum) {
     struct file f = file_open(*path, 0);
     if (f.is_valid == 0) {
         return 0;
@@ -69,8 +71,6 @@ int verify_checksum(file_path_t* path, hex_checksum_t* checksum) {
     for (size_t i=0; i<SHA256_DIGEST_LENGTH; ++i)
         snprintf(&sha256_hex[0] + i*2, 3lu, "%02x", sha256[i]);
     sha256_hex[64] = '\0';
-
-    //printf("verify_checksum: {\n  computed:\"%s\",\n  expected:\"%s\"\n}\n", sha256_hex, *checksum);
 
     return strncmp(sha256_hex, *checksum, HEX_CHECKSUM_SIZE) == 0;
 }

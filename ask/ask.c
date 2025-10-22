@@ -21,13 +21,16 @@
  * in the root directory of this project.
  */
 #include "ask.h"
+#include "filesystem/filesystem.h"
 
-file_path_t ROOT_DIR;
-file_path_t SAVE_DIR;
-unsigned int ROOT_DIR_LENGTH;
-unsigned int SAVE_DIR_LENGTH;
-unsigned int MAX_SUBDIRECTORY_SIZE;
+file_path_t DIR_ROOT;
+file_path_t DIR_SAVED;
+unsigned int LENGTH_ROOT_DIR;
+unsigned int LENGTH_SAVED_DIR;
+unsigned int SIZE_MAX_SUBDIRECTORY;
 unsigned int MAX_CONVERSATION_SIZE;
+file_path_t FILE_DOT_ASK;
+file_path_t FILE_DATA_JSON;
 
 int init_constants() {
     return filesystem_resolve_constants();

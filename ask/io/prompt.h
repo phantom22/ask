@@ -20,24 +20,11 @@
  * linking with OpenSSL. For complete details, see the LICENSE file
  * in the root directory of this project.
  */
-#include "ask.h"
+#ifndef PROMPT_H_
+#define PROMPT_H_
 
-#include <ncurses.h>
+// #include "../types.h"
 
-int main() {
-    initscr();
-    printw("Hello World! Press any key to exit...");
-    refresh();
-    getch();
-    endwin();
+// int prompt_for_model(model_name_t* output);
 
-    ask_init();
-
-    command_output_t output;
-    capture_shell_command("ls -a", &output);
-    printf(" output: \"%s\"\n", output);
-
-    ask_cleanup();
-
-    return 0;
-}   
+#endif

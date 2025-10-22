@@ -23,30 +23,26 @@
 #ifndef JSON_H_
 #define JSON_H_
 
-#include "../filesystem/file.h"
-#include <jansson.h>
+struct file;
+struct json_t;
 
 struct json_file {
-    struct file file;
-    json_t *root;
+    struct file* file;
+    struct json_t* root;
     int is_valid;
 };
 
-/** */
-int validate_json(struct file f) {
-    return 0;
-}
+struct json_file json_open(struct file* f);
+int json_dump(struct json_file* j);
+void json_close(struct json_file* j);
 
-// json_t *root;
-// json_error_t error;
-// root = json_load_file("bin/test.json", 0, &error);
+int json_node_is_boolean(int);
+int json_node_is_string(int);
+int json_node_is_array(int);
+int json_get_field(struct json_file* j, const char* key, int(type_check)(int), struct json_t* new_value, struct json_t** output);
 
-// json_t *name = json_object_get(root, "name");
-// const char *name_str = json_string_value(name);
-
-// json_object_set_new(root, "name", json_string("new name"));
-// json_dump_file(root, "bin/new_test.json", JSON_INDENT(2));
-
-// json_decref(root);
+#define json_get_boolean(j,key,default_value,output_var_ptr) json_get_field(j,key,json_node_is_boolean,json_boolean(default_value),output_var_ptr)
+#define json_get_string(j,key,default_value,output_var_ptr) json_get_field(j,key,json_node_is_string,json_string(default_value),output_var_ptr)
+#define json_get_array(j,key,output_var_ptr) json_get_field(j,key,json_node_is_array,json_array(),output_var_ptr)
 
 #endif

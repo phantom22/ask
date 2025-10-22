@@ -28,7 +28,7 @@
 
 #define _resolve_root_dir(varname, rpath, how_to_exit) \
     file_path_t varname; \
-    if (snprintf(varname, FILE_PATH_SIZE, "%s/%s", CORRECT_ROOT_DIR, rpath) < 0) { \
+    if (snprintf(varname, SIZE_FILE_PATH, "%s/%s", DIR_CORRECT_ROOT, rpath) < 0) { \
         printf("resolve_root_dir: snprintf failed on variable named \"%s\".", _VARNAME_TO_STRING(varname)); \
         how_to_exit; \
     }
@@ -37,7 +37,7 @@
 
 #define _resolve_project_dir(varname, rpath, how_to_exit) \
     file_path_t varname; \
-    if (snprintf(varname, FILE_PATH_SIZE, "%s/%s", PROJECT_DIR, rpath) < 0) { \
+    if (snprintf(varname, SIZE_FILE_PATH, "%s/%s", PROJECT_DIR, rpath) < 0) { \
         printf("resolve_project_dir: snprintf failed on variable named \"%s\".", _VARNAME_TO_STRING(varname)); \
         how_to_exit; \
     }

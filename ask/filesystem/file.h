@@ -23,7 +23,7 @@
 #ifndef FILE_H_
 #define FILE_H_
 
-#include "filesystem.h"
+#include "../types.h"
 
 struct file {
     int fd;

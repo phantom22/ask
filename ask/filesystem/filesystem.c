@@ -28,21 +28,35 @@
 
 int filesystem_resolve_constants() {
     char* home = getenv("HOME");
-    int r_length = snprintf(ROOT_DIR, FILE_PATH_SIZE, "%s/.ask", home),
-        s_length = snprintf(SAVE_DIR, FILE_PATH_SIZE, "%s/saved", ROOT_DIR);
-    //sprintf(ROOT_DIR, "%s/.ask", home);
-    if (r_length < 0 || s_length < 0) {
-        ROOT_DIR_LENGTH = 0;
-        SAVE_DIR_LENGTH = 0;
+    int r_length = snprintf(DIR_ROOT, SIZE_FILE_PATH, "%s/.ask", home),
+        s_length = snprintf(DIR_SAVED, SIZE_FILE_PATH, "%s/saved", DIR_ROOT);
+
+    if (r_length < 0 || s_length < 0 || 
+        sprintf(FILE_DOT_ASK, "%s/.ask", DIR_ROOT) < 0 || 
+        sprintf(FILE_DATA_JSON, "%s/data.json", DIR_ROOT) < 0
+    ) {
+        LENGTH_ROOT_DIR = 0;
+        LENGTH_SAVED_DIR = 0;
         return -1;
     }
-    ROOT_DIR_LENGTH = r_length;
-    SAVE_DIR_LENGTH = s_length;
-    MAX_SUBDIRECTORY_SIZE = FILE_PATH_SIZE - r_length - 1;
-    MAX_CONVERSATION_SIZE = FILE_PATH_SIZE - s_length - 1;
 
+    LENGTH_ROOT_DIR = r_length;
+    LENGTH_SAVED_DIR = s_length;
+    SIZE_MAX_SUBDIRECTORY = SIZE_FILE_PATH - r_length - 1;
+    MAX_CONVERSATION_SIZE = SIZE_FILE_PATH - s_length - 1;
+    
     #ifdef ASK_PRINT_GLOBALS
-    printf("ROOT_DIR: \"%s\"\nSAVE_DIR: \"%s\"\nFILE_PATH_SIZE: %i\nROOT_DIR_LENGTH: %i\nSAVE_DIR_LENGTH: %i\nMAX_SUBDIRECTORY_SIZE: %i\nFILE_PATH_SIZE: %i\n", ROOT_DIR, SAVE_DIR, FILE_PATH_SIZE, ROOT_DIR_LENGTH, SAVE_DIR_LENGTH, MAX_SUBDIRECTORY_SIZE, FILE_PATH_SIZE);
+    printf("DIR_ROOT: \"%s\"\nDIR_SAVED: \"%s\"\nFILE_DOT_ASK: \"%s\"\nFILE_DATA_JSON: \"%s\"\nSIZE_FILE_PATH: %i\nDIR_LENGTH_ROOT: %i\nLENGTH_SAVE_DIR: %i\nSIZE_MAX_SUBDIRECTORY: %i\nSIZE_FILE_PATH: %i\n",
+        DIR_ROOT,
+        DIR_SAVED,
+        FILE_DOT_ASK,
+        FILE_DATA_JSON,
+        SIZE_FILE_PATH,
+        LENGTH_ROOT_DIR,
+        LENGTH_SAVED_DIR,
+        SIZE_MAX_SUBDIRECTORY,
+        SIZE_FILE_PATH
+    );
     #endif
     
     return 0;
@@ -51,10 +65,10 @@ int filesystem_resolve_constants() {
 /** Returns -1 on fail. */
 int filesystem_resolve_path(const char* rel_path, file_path_t* output) {
     if (rel_path == nullptr || output == nullptr) return -1;
-    else if (strlen(rel_path) > MAX_SUBDIRECTORY_SIZE - 1) return -1;
-    return -(snprintf(*output, FILE_PATH_SIZE, "%s/%s", ROOT_DIR, rel_path) < 0);
+    else if (strlen(rel_path) > SIZE_MAX_SUBDIRECTORY - 1) return -1;
+    return -(snprintf(*output, SIZE_FILE_PATH, "%s/%s", DIR_ROOT, rel_path) < 0);
 }
 
 int filesystem_is_allowed_path(file_path_t* p) {
-    return strstr(*p, ROOT_DIR) == *p;
+    return strstr(*p, DIR_ROOT) == *p;
 }

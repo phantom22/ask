@@ -27,12 +27,21 @@
 // during compilation by the Makefile
 #define _POSIX_C_SOURCE 200809L
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "filesystem/filesystem.h"
 #include "filesystem/file.h"
-#include "filesystem/command.h"
-#include "integrity/verify_checksum.h"
+#include "io/command.h"
+#include "integrity/validate_checksum.h"
+#include "json/json.h"
 
 int ask_init();
 void ask_cleanup();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

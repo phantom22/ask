@@ -21,6 +21,7 @@
  * in the root directory of this project.
  */
 #include "file.h"
+#include "filesystem.h"
 
 #include <unistd.h> // open
 #include <fcntl.h> // close
@@ -36,7 +37,7 @@ int file_get_name(file_path_t* p, char** fname) {
              o = 0; // occurrence
     int has_slash = 0;
     char c;
-    for (; l<FILE_PATH_SIZE; ++l) {
+    for (; l<SIZE_FILE_PATH; ++l) {
         c = *(*p + l);
         if (c == '/')  {
             has_slash = 1;
@@ -97,10 +98,10 @@ struct file file_open(const char *rpath, int open_flags) {
             return f;
         }
     #else
-        memcpy(fpath, rpath, FILE_PATH_SIZE);
+        memcpy(fpath, rpath, SIZE_FILE_PATH);
     #endif
 
-    memcpy(f.full_path, fpath, FILE_PATH_SIZE);
+    memcpy(f.full_path, fpath, SIZE_FILE_PATH);
     
     file_get_name(&fpath, &f.name);
 

@@ -20,24 +20,11 @@
  * linking with OpenSSL. For complete details, see the LICENSE file
  * in the root directory of this project.
  */
-#include "ask.h"
+ #ifndef VERIFY_CHECKSUM_H_
+ #define VERIFY_CHECKSUM_H_
+ 
+#include "../types.h"
 
-#include <ncurses.h>
+int validate_checksum(file_path_t* path, hex_checksum_t* checksum);
 
-int main() {
-    initscr();
-    printw("Hello World! Press any key to exit...");
-    refresh();
-    getch();
-    endwin();
-
-    ask_init();
-
-    command_output_t output;
-    capture_shell_command("ls -a", &output);
-    printf(" output: \"%s\"\n", output);
-
-    ask_cleanup();
-
-    return 0;
-}   
+#endif

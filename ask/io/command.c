@@ -20,24 +20,24 @@
  * linking with OpenSSL. For complete details, see the LICENSE file
  * in the root directory of this project.
  */
-#include "ask.h"
+#include "command.h"
 
-#include <ncurses.h>
+#include <stdlib.h>
+#include <stdio.h>
 
-int main() {
-    initscr();
-    printw("Hello World! Press any key to exit...");
-    refresh();
-    getch();
-    endwin();
+inline int shell_command(command_t command) {
+    return system(command);
+}
 
-    ask_init();
+inline int capture_shell_command(const char* command, command_output_t* output) {
+    if (output == nullptr) return -1;
+    
+    FILE* fp = popen(command, "r");
 
-    command_output_t output;
-    capture_shell_command("ls -a", &output);
-    printf(" output: \"%s\"\n", output);
+    size_t nbytes;
+    while ((nbytes = fread(*output, 1, COMMAND_OUTPUT_SIZE, fp)) > 0) {}
 
-    ask_cleanup();
+    pclose(fp);
 
     return 0;
-}   
+}

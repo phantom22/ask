@@ -23,21 +23,23 @@
 #ifndef FILESYSTEM_H_
 #define FILESYSTEM_H_
 
-#define FILE_PATH_SIZE 256u
-typedef char file_path_t[FILE_PATH_SIZE];
+#include "../types.h"
 
 /** Resolves to "$HOME/.ask" */
-extern file_path_t ROOT_DIR;
-extern unsigned int ROOT_DIR_LENGTH;
+extern file_path_t DIR_ROOT;
+extern unsigned int LENGTH_ROOT_DIR;
 
 /** Resolves to "$HOME/.ask/saved" */
-extern file_path_t SAVE_DIR;
-extern unsigned int SAVE_DIR_LENGTH;
+extern file_path_t DIR_SAVED;
+extern unsigned int LENGTH_SAVED_DIR;
 
 /** Actual size in bytes */
-extern unsigned int MAX_SUBDIRECTORY_SIZE;
+extern unsigned int SIZE_MAX_SUBDIRECTORY;
 /** Actual size in bytes */
 extern unsigned int MAX_CONVERSATION_SIZE;
+
+extern file_path_t FILE_DOT_ASK;
+extern file_path_t FILE_DATA_JSON;
 
 int filesystem_resolve_constants();
 int filesystem_resolve_path(const char* rel_path, file_path_t* output);
