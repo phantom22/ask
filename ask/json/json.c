@@ -23,6 +23,7 @@
 #include "json.h"
 #include "../filesystem/file.h"
 
+#include <unistd.h>
 #include <fcntl.h>
 #include <jansson.h>
 
@@ -37,18 +38,17 @@ struct json_file json_open(struct file* f) {
     return j;
 }
 
-int json_dump(struct json_file* j) {
-    file_close(j->file);
-    *j->file = file_open(j->file->full_path, O_TRUNC);
-    if (j->file->fd == -1)
+
+int json_dump(struct json_file* j) { 
+    if (file_erase_contents(j->file) == -1)
         return -1;
     return json_dumpfd(j->root, j->file->fd, JSON_INDENT(2));
 }
 
 void json_close(struct json_file *j) {
-    if (j->is_valid == 1) {
-        j->is_valid = 0;
+    if (j->is_valid) {
         json_decref(j->root);
+        j->is_valid = 0;
     }
 }
 

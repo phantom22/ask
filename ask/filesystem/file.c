@@ -23,6 +23,8 @@
 #include "file.h"
 #include "filesystem.h"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h> // open
 #include <fcntl.h> // close
 #include <sys/stat.h> // futimens, fstat
@@ -62,25 +64,11 @@ int file_get_name(file_path_t* p, char** fname) {
     return -(*fname[0] == '\0'); // -1 if string is empty, else 0
 }
 
-/** Return -1 on fail. */
-int file_touch(struct file f) {
-    struct timespec ts[2];
-    ts[1].tv_sec = ts[0].tv_sec = time(NULL);
-    ts[1].tv_nsec = ts[0].tv_nsec = 0;
-
-    return futimens(f.fd, ts);
-}
-
-/** f assumed to be an opened file. */
-inline void file_close(struct file *f) {
-    close(f->fd);
-    f->fd = -1;
-    f->is_valid = 0;
-}
 
 /** Retrieves/creates the file specified by fname. */
 struct file file_open(const char *rpath, int open_flags) {
     struct file f;
+    f.contents = nullptr;
     if (rpath == nullptr) {
         f.fd = -1;
         f.is_valid = 0;
@@ -116,6 +104,7 @@ struct file file_open(const char *rpath, int open_flags) {
 
     struct stat st;
     if (fstat(f.fd, &st) == 0) {
+        f.size = st.st_size;
         f.is_empty = st.st_size == 0;
         f.is_valid = 1;
     }
@@ -128,20 +117,61 @@ struct file file_open(const char *rpath, int open_flags) {
     return f;
 }
 
+void file_close(struct file *f) {
+    if (f->is_valid) {
+        close(f->fd);
+        f->fd = -1;
+        f->is_valid = 0;
+        if (f->contents != nullptr)
+            free(f->contents);
+    }
+}
+
+int file_erase_contents(struct file *f) {
+    if (ftruncate(f->fd,0) == -1 || lseek(f->fd, 0, SEEK_SET) == -1)
+        return -1;
+    return 0;
+}
+
+/** Return -1 on fail. */
+int file_touch(struct file *f) {
+    struct timespec ts[2];
+    ts[1].tv_sec = ts[0].tv_sec = time(NULL);
+    ts[1].tv_nsec = ts[0].tv_nsec = 0;
+
+    return futimens(f->fd, ts);
+}
+
 /** Writes to the file described by f only if said file is empty. */
 int file_initialize_if_empty(struct file *f, const char* with) {
-    if (with == nullptr)
-        return -1;
-
-    if (f->is_valid == 0)
+    if (f->is_valid == 0 || with == nullptr)
         return -1;
 
     unsigned long wlength = strlen(with);
+    printf("file_initialize_if_empty\n  with: '%s'\n  wlength: %lu\n", with, wlength);
     if (f->is_empty && wlength > 0) {
-        if (write(f->fd, with, wlength) == -1) {
+        if (write(f->fd, with, wlength+1) == -1) {
+            printf("file_initialize_if_empty: failed to write.\n");
             file_close(f);
             return -1;
         }
     }
+
+    f->is_empty = 0;
+    f->size = wlength;
+    return 0;
+}
+
+int file_get_contents(struct file* f, char** output) {
+    if (f == nullptr || output == nullptr || f->is_valid != 1 || lseek(f->fd, 0, SEEK_SET) == -1)
+        return -1;
+    
+    f->contents = (char*)malloc(f->size);
+    if (f->contents == nullptr || read(f->fd, f->contents, f->size) == -1) {
+        file_close(f);
+        return -1;
+    }
+
+    *output = f->contents;
     return 0;
 }

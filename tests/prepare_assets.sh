@@ -14,13 +14,15 @@ ASSETS_DIR="$1/tests/assets"
 rm -rf "$ASSETS_DIR"
 mkdir -p "$ASSETS_DIR"
 
-OPEN_DIR="$ASSETS_DIR/open"
+OPEN_DIR="$ASSETS_DIR/file_open"
 mkdir -p "$OPEN_DIR"
 
 touch "$OPEN_DIR/existing_empty_file.txt"
 
 touch "$OPEN_DIR/existing_not_empty_file.txt"
 echo "gibberish" > "$OPEN_DIR/existing_not_empty_file.txt"
+
+# touch "$OPEN_DIR/file_to_create.txt"
 
 JSON_DIR="$ASSETS_DIR/json"
 mkdir -p "$JSON_DIR"
@@ -30,5 +32,11 @@ echo '{"valid_bool1":true,"valid_bool2":false,"invalid_bool1":"","invalid_bool2"
 
 touch "$JSON_DIR/invalid.json"
 echo 'gibberish 2' > "$JSON_DIR/invalid.json"
+
+FILE_DIR="$ASSETS_DIR/file_initialize"
+mkdir -p "$FILE_DIR"
+
+touch "$FILE_DIR/file_a.txt"
+# touch "$FILE_DIR/file_b.txt"
 
 exit 0

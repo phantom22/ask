@@ -149,9 +149,9 @@ TEST(File, GetName) {
 }
 
 TEST(File, Open) {
-    resolve_project_dir(path_a, "tests/assets/open/file_to_create.txt");
-    resolve_project_dir(path_b, "tests/assets/open/existing_empty_file.txt");
-    resolve_project_dir(path_c, "tests/assets/open/existing_not_empty_file.txt");
+    resolve_project_dir(path_a, "tests/assets/file_open/file_to_create.txt");
+    resolve_project_dir(path_b, "tests/assets/file_open/existing_empty_file.txt");
+    resolve_project_dir(path_c, "tests/assets/file_open/existing_not_empty_file.txt");
 
     struct file a = file_open(path_a, 0);
     struct file b = file_open(path_b, 0);
@@ -186,6 +186,27 @@ TEST(File, Open) {
     EXPECT_EQ(d.is_valid, 0);
     EXPECT_EQ(d.fd, -1);
     EXPECT_EQ(d.is_empty, 1);
+}
+
+TEST(File, InitializeIfEmpty) {
+    resolve_project_dir(path_a, "tests/assets/file_initialize/file_a.txt");
+    resolve_project_dir(path_b, "tests/assets/file_initialize/file_b.txt");
+
+    struct file fa = file_open(path_a, 0);
+    ASSERT_EQ(fa.is_valid, 1);
+    struct file fb = file_open(path_b, 0);
+    ASSERT_EQ(fb.is_valid, 1);
+
+    char fa_content_initialization[] = "just some text";
+    file_initialize_if_empty(&fa, fa_content_initialization);
+
+    char* fa_contents;
+    ASSERT_EQ(file_get_contents(&fa, &fa_contents), 0);
+    
+    EXPECT_EQ(strcmp(fa_contents, fa_content_initialization), 0);
+
+    file_close(&fa);
+    file_close(&fb);
 }
 
 TEST(Json, Open) {

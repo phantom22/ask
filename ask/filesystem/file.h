@@ -33,12 +33,16 @@ struct file {
     int created;
     int is_empty;
     int is_valid;
+    unsigned long size;
+    char* contents;
 };
 
 int file_get_name(file_path_t* p, char** fname);
-int file_touch(struct file f);
-void file_close(struct file *f);
 struct file file_open(const char *rpath, int open_flags);
+void file_close(struct file *f);
+int file_erase_contents(struct file *f);
+int file_touch(struct file *f);
 int file_initialize_if_empty(struct file *f, const char* with);
+int file_get_contents(struct file* p, char** output);
 
 #endif
