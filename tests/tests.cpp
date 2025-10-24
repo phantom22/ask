@@ -224,7 +224,7 @@ TEST(Command, CaptureShellCommand) {
     unsigned long size_1, size_2, size_3, 
                   line_count1, line_count2, line_count3,
                   *indices_1, *indices_2, *indices_3;
-    EXPECT_EQ(capture_shell_command("echo \"JUST a TeSt.\"", &output_1, &size_1, &line_count1, &indices_1), 0);
+    EXPECT_EQ(capture_shell_command("printf \"JUST a TeSt.\n\"", &output_1, &size_1, &line_count1, &indices_1), 0);
     if (output_1 != nullptr) {
         EXPECT_EQ(strcmp(output_1,"JUST a TeSt."), 0);
         free(output_1);
@@ -241,7 +241,7 @@ TEST(Command, CaptureShellCommand) {
         FAIL() << _STRINGIFY(output_1) << " was not malloced.";
     }
 
-    EXPECT_EQ(capture_shell_command("echo $HOME", &output_2, &size_2, &line_count2, &indices_2), 0);
+    EXPECT_EQ(capture_shell_command("printf \"$HOME\n\"", &output_2, &size_2, &line_count2, &indices_2), 0);
     if (output_2 != nullptr) {
         EXPECT_EQ(strcmp(output_2,HOME_DIR), 0);
         free(output_2);
@@ -259,7 +259,7 @@ TEST(Command, CaptureShellCommand) {
     }
 
 
-    EXPECT_EQ(capture_shell_command("echo -e \"Multi\nline\noutput\njust\nfor\nfun!\"", &output_3, &size_3, &line_count3, &indices_3), 0);
+    EXPECT_EQ(capture_shell_command("printf \"Multi\nline\noutput\njust\nfor\nfun!\n\"", &output_3, &size_3, &line_count3, &indices_3), 0);
     if (output_3 != nullptr) {
         EXPECT_EQ(strcmp(output_3,"Multi\nline\noutput\njust\nfor\nfun!"), 0);
         free(output_3);

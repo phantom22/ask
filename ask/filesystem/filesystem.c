@@ -32,8 +32,8 @@ int filesystem_resolve_constants() {
         s_length = snprintf(DIR_SAVED, SIZE_FILE_PATH, "%s/saved", DIR_ROOT);
 
     if (r_length < 0 || s_length < 0 || 
-        sprintf(FILE_DOT_ASK, "%s/.ask", DIR_ROOT) < 0 || 
-        sprintf(FILE_DATA_JSON, "%s/data.json", DIR_ROOT) < 0
+        snprintf(FILE_DOT_ASK, SIZE_FILE_PATH, "%s/.ask", DIR_ROOT) < 0 || 
+        snprintf(FILE_DATA_JSON, SIZE_FILE_PATH, "%s/data.json", DIR_ROOT) < 0
     ) {
         LENGTH_ROOT_DIR = 0;
         LENGTH_SAVED_DIR = 0;
