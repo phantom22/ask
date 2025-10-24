@@ -32,9 +32,6 @@ typedef char hex_checksum_t[HEX_CHECKSUM_SIZE];
 #define COMMAND_SIZE 128u
 typedef char command_t[COMMAND_SIZE];
 
-#define COMMAND_OUTPUT_SIZE 8192u
-typedef unsigned char command_output_t[COMMAND_OUTPUT_SIZE];
-
 #define OLLAMA_MODEL_SIZE 128u
 typedef char model_name_t[OLLAMA_MODEL_SIZE];
 

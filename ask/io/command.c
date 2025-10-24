@@ -24,20 +24,140 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+
+#define COMMAND_OUTPUT_BLOCK_SIZE 1024lu
 
 inline int shell_command(command_t command) {
     return system(command);
 }
 
-inline int capture_shell_command(const char* command, command_output_t* output) {
-    if (output == nullptr) return -1;
+inline int capture_shell_command(const char* command, char** output, unsigned long* output_size, unsigned long* output_line_count, unsigned long** output_line_indices) {
+    if (output == nullptr)
+        return -1;
     
     FILE* fp = popen(command, "r");
+    if (fp == nullptr)
+        return -1;
 
-    size_t nbytes;
-    while ((nbytes = fread(*output, 1, COMMAND_OUTPUT_SIZE, fp)) > 0) {}
+    char *buffer = (char*)malloc(COMMAND_OUTPUT_BLOCK_SIZE),
+         *new_buffer = nullptr;
+    unsigned long *line_indices = nullptr,
+                  *new_line_indices = nullptr;
+    unsigned long malloced_indices = 0,
+                  new_malloced_indices = 0;
+    if (buffer == nullptr)
+        return -1;
+    if (output_line_indices != nullptr) {
+        malloced_indices = 15;
+        line_indices = (unsigned long*)malloc(sizeof(unsigned long) * malloced_indices);
+    }
 
+    buffer[0] = '\0';
+
+    unsigned long buffer_size = COMMAND_OUTPUT_BLOCK_SIZE,
+                  new_buffer_size = 0,
+                  line_size = 0,
+                  /* because buffer contains a single '\0'
+                   * to simplify line 77 - memcpy DEST calculation
+                   */
+                  bytes_written = 1,
+                  new_bytes_written = 0,
+                  bytes_read = 0,
+                  line_count = 0;
+
+    char *line = nullptr;
+    long chars_read;
+    while ((chars_read = getline(&line, &line_size, fp)) != -1) {
+        ++line_count;
+        bytes_read = chars_read + 1;
+        new_bytes_written = bytes_written + bytes_read;
+        //printf("buffer_size: %lu\nbytes_written: %lu\nbytes_read: %ld\nnew_bytes_written: %lu\nline: \"%s\"\n----\n", buffer_size, bytes_written, bytes_read, new_bytes_written, line);
+        if (new_bytes_written > buffer_size) {
+            new_buffer_size = buffer_size + ((bytes_read / COMMAND_OUTPUT_BLOCK_SIZE) + 1) * COMMAND_OUTPUT_BLOCK_SIZE;
+            //printf("[RESIZE] old_size: %lu, new_size: %lu, diff: %lu, blocks_size: %lu, n_blocks: %lu\n", buffer_size, new_buffer_size, new_buffer_size - buffer_size, COMMAND_OUTPUT_BLOCK_SIZE, (bytes_read / COMMAND_OUTPUT_BLOCK_SIZE) + 1);
+            new_buffer = (char*)realloc(buffer, new_buffer_size);
+            if (new_buffer == nullptr) {
+                free(buffer);
+                free(line);
+                if (line_indices != nullptr)
+                    free(line_indices);
+                pclose(fp);
+                return -1;
+            }
+            buffer_size = new_buffer_size;
+            buffer = new_buffer;
+        }
+        memcpy(&buffer[bytes_written - 1], line, bytes_read);
+        //line[bytes_read-2] = '\0';
+        //printf("to: %lu, size: %lu, line: '%s\\n\\0'\n", bytes_written - 1, bytes_read, line);
+        
+        if (line_indices != nullptr && line[0] != '\0') {
+            if (line_count > malloced_indices) {
+                new_malloced_indices = malloced_indices * 2;
+                new_line_indices = (unsigned long*)realloc(line_indices, sizeof(unsigned long) * new_malloced_indices);
+                //printf("[RESIZE] old_length: %lu, new_length: %lu\n", malloced_indices, new_malloced_indices);
+                if (new_line_indices == nullptr) {
+                    free(line);
+                    free(buffer);
+                    pclose(fp);
+                    free(line_indices);
+                }
+                line_indices = new_line_indices;
+                malloced_indices = new_malloced_indices;
+            }
+            //printf("[%lu] = %lu\n", line_count-1, bytes_written-1);
+            line_indices[line_count-1] = bytes_written-1;
+        }
+
+        bytes_written = bytes_written == 0 ? new_bytes_written : new_bytes_written - 1;
+    }
+
+    free(line);
     pclose(fp);
+
+    if (bytes_written < buffer_size) {
+        if (buffer[bytes_written-2] == '\n') {
+            buffer[bytes_written-2] = '\0';
+            new_buffer = (char*)realloc(buffer, bytes_written-1);
+            buffer_size = bytes_written-1;
+        }
+        else {
+            new_buffer = (char*)realloc(buffer, bytes_written);
+            buffer_size = bytes_written;
+        }
+
+        //printf("[FIT] old_size: %lu, new_size: %lu\n", buffer_size, bytes_written);
+        if (new_buffer == nullptr) {
+            free(buffer);
+            if (line_indices != nullptr)
+                free(line_indices);
+            return -1;
+        }
+        buffer = new_buffer;
+    }
+
+    *output = buffer;
+
+    if (output_size != nullptr)
+        *output_size = buffer_size;
+
+    if (output_line_count != nullptr)
+        *output_line_count = line_count;
+
+    if (output_line_indices != nullptr) {
+        if (line_count < malloced_indices) {
+            //printf("[FIT] old_length: %lu, new_length: %lu\n", malloced_indices, line_count);
+            new_line_indices = (unsigned long*)realloc(line_indices, sizeof(unsigned long) * line_count);
+            if (new_line_indices == nullptr) {
+                free(buffer);
+                free(line_indices);
+                return -1;
+            }
+            line_indices = new_line_indices;
+        }
+        *output_line_indices = line_indices;
+    }
 
     return 0;
 }

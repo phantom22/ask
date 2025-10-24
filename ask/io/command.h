@@ -26,6 +26,9 @@
 #include "../types.h"
 
 int shell_command(command_t command);
-int capture_shell_command(const char* command, command_output_t* output);
+/** On success output will be a malloc'ed char* that contains the full output of the specified command
+  * with no trailing '\n' char. Returns -1 on fail.
+  */
+int capture_shell_command(const char* command, char** output, unsigned long* output_size, unsigned long* output_line_count, unsigned long** output_line_indices);
 
 #endif

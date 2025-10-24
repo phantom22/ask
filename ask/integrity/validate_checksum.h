@@ -25,6 +25,17 @@
  
 #include "../types.h"
 
-int validate_checksum(file_path_t* path, hex_checksum_t* checksum);
+struct file;
+/** Returns 0 on success or -1 on fail. */
+int sha256sum(struct file* f, hex_checksum_t* output);
+
+enum checksum_file_type {
+    path_to_file,
+    struct_file_ptr
+};
+/** Returns -1 on fail. Otherwise returns 1 if file has the specified checksum.
+  * file can be either a struct file* or a file_path_t. Note that file_type must reflect this decision.
+  */
+int validate_checksum(void* file, const hex_checksum_t checksum, enum checksum_file_type file_type);
 
 #endif

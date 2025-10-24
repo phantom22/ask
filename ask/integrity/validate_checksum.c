@@ -33,44 +33,74 @@
 
 #define __SHA256_BUFFER_SIZE 4096lu
 
-int validate_checksum(file_path_t* path, hex_checksum_t* checksum) {
-    struct file f = file_open(*path, 0);
-    if (f.is_valid == 0) {
-        return 0;
-    }
+int sha256sum(struct file* f, hex_checksum_t* output) {
+    if (file_is_invalid(f) || output == nullptr)
+        return -1;
 
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
     if (ctx == nullptr || EVP_DigestInit_ex(ctx, EVP_sha256(), NULL) != 1) {
         if (ctx != nullptr)
             EVP_MD_CTX_free(ctx);
-        file_close(&f);
-        return 0;
+        file_close(f);
+        return -1;
     }
 
     unsigned char buffer[__SHA256_BUFFER_SIZE];
     size_t bytes;
-    while ((bytes = read(f.fd, buffer, __SHA256_BUFFER_SIZE))) {
+    while ((bytes = read(f->fd, buffer, __SHA256_BUFFER_SIZE))) {
         if (EVP_DigestUpdate(ctx, buffer, bytes) != 1) {
             EVP_MD_CTX_free(ctx);
-            file_close(&f);
-            return 0;
+            file_close(f);
+            return -1;
         }
     }
 
     unsigned char sha256[EVP_MAX_MD_SIZE];
     if (EVP_DigestFinal_ex(ctx, sha256, nullptr) != 1) {
         EVP_MD_CTX_free(ctx);
-        file_close(&f);
-        return 0;
+        file_close(f);
+        return -1;
     }
 
     EVP_MD_CTX_free(ctx);
-    file_close(&f);
 
-    hex_checksum_t sha256_hex;
-    for (size_t i=0; i<SHA256_DIGEST_LENGTH; ++i)
-        snprintf(&sha256_hex[0] + i*2, 3lu, "%02x", sha256[i]);
-    sha256_hex[64] = '\0';
+    for (size_t i=0; i<SHA256_DIGEST_LENGTH; ++i) {
+        if (snprintf(*output + i*2, 3lu, "%02x", sha256[i]) < 0) {
+            file_close(f);
+            return -1;
+        }
+    }
+    *(*output + 64) = '\0';
 
-    return strncmp(sha256_hex, *checksum, HEX_CHECKSUM_SIZE) == 0;
+    return 0;
+}
+
+int validate_checksum(void* file, const hex_checksum_t expected_checksum, enum checksum_file_type file_type) {
+    if (file == nullptr)
+        return -1;
+
+    struct file f;
+    switch (file_type) {
+        case path_to_file:
+            f = file_open(((char*)file), 0);
+            break;
+        case struct_file_ptr:
+            f = *((struct file*) file);
+            break;
+        default:
+            return -1;
+    }
+
+    if (f.is_valid != 1 || f.fd == -1) {
+        return -1;
+    }
+
+    hex_checksum_t real_checksum;
+    if (sha256sum(&f, &real_checksum) == -1)
+        return 0;
+
+    if (file_type == path_to_file)
+        file_close(&f);
+
+    return strncmp(real_checksum, expected_checksum, HEX_CHECKSUM_SIZE) == 0;
 }

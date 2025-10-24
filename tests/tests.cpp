@@ -209,6 +209,79 @@ TEST(File, InitializeIfEmpty) {
     file_close(&fb);
 }
 
+TEST(Integrity, sha256sum) {
+    resolve_project_dir(path_a, "tests/assets/checksum/file1.txt");
+    resolve_project_dir(path_b, "tests/assets/checksum/file2.txt");
+    resolve_project_dir(path_c, "tests/assets/checksum/file3.txt");
+
+    EXPECT_EQ(validate_checksum(path_a, "4eb22759388dd8f1e0dfeaffcb51bd4d7167a1eb6fd26258cdec98689844c378", path_to_file),1);
+    EXPECT_EQ(validate_checksum(path_b, "fe0f065a3dbc9a9df275204ed5157589461b8d8107d7e43b7f0a9e0f64d23ea9", path_to_file), 1);
+    EXPECT_EQ(validate_checksum(path_c, "e2aa2d21f6c11079c4f5b5eb5ed6d121b662d3e7724ac10d59fbfb82437f602d", path_to_file), 1);
+}
+
+TEST(Command, CaptureShellCommand) {
+    char *output_1, *output_2, *output_3;
+    unsigned long size_1, size_2, size_3, 
+                  line_count1, line_count2, line_count3,
+                  *indices_1, *indices_2, *indices_3;
+    EXPECT_EQ(capture_shell_command("echo \"JUST a TeSt.\"", &output_1, &size_1, &line_count1, &indices_1), 0);
+    if (output_1 != nullptr) {
+        EXPECT_EQ(strcmp(output_1,"JUST a TeSt."), 0);
+        free(output_1);
+        if (indices_1 == nullptr) {
+            FAIL() << _STRINGIFY(indices_1) << " was not malloced.";
+        }
+        else {
+            EXPECT_EQ(indices_1[0], 0);
+            free(indices_1);
+        }
+        EXPECT_EQ(line_count1, 1);
+    }
+    else {
+        FAIL() << _STRINGIFY(output_1) << " was not malloced.";
+    }
+
+    EXPECT_EQ(capture_shell_command("echo $HOME", &output_2, &size_2, &line_count2, &indices_2), 0);
+    if (output_2 != nullptr) {
+        EXPECT_EQ(strcmp(output_2,HOME_DIR), 0);
+        free(output_2);
+        if (indices_2 == nullptr) {
+            FAIL() << _STRINGIFY(indices_2) << " was not malloced.";
+        }
+        else {
+            EXPECT_EQ(indices_2[0], 0);
+            free(indices_2);
+        }
+        EXPECT_EQ(line_count2, 1);
+    }
+    else {
+        FAIL() << _STRINGIFY(output_2) << " was not malloced.";
+    }
+
+
+    EXPECT_EQ(capture_shell_command("echo -e \"Multi\nline\noutput\njust\nfor\nfun!\"", &output_3, &size_3, &line_count3, &indices_3), 0);
+    if (output_3 != nullptr) {
+        EXPECT_EQ(strcmp(output_3,"Multi\nline\noutput\njust\nfor\nfun!"), 0);
+        free(output_3);
+        if (indices_3 == nullptr) {
+            FAIL() << _STRINGIFY(indices_3) << " was not malloced.";
+        }
+        else if (line_count3 == 6) {
+            EXPECT_EQ(indices_3[0], 0);
+            EXPECT_EQ(indices_3[1], 6);
+            EXPECT_EQ(indices_3[2], 11);
+            EXPECT_EQ(indices_3[3], 18);
+            EXPECT_EQ(indices_3[4], 23);
+            EXPECT_EQ(indices_3[5], 27);
+            free(indices_3);
+        }
+        EXPECT_EQ(line_count3, 6);
+    }
+    else {
+        FAIL() << _STRINGIFY(output_3) << " was not malloced.";
+    }
+}
+
 TEST(Json, Open) {
     resolve_project_dir(path_a, "tests/assets/json/valid.json");
     resolve_project_dir(path_b, "tests/assets/json/invalid.json");
@@ -347,8 +420,7 @@ int main(int argc, char **argv) {
             return 1;
         }
         
-        hex_checksum_t prepare_assets_hashsum = SHELL_SCRIPT_SHA256SUM;
-        if (!validate_checksum(&prepare_assets_sh, &prepare_assets_hashsum)) {
+        if (!validate_checksum(&prepare_assets_sh, SHELL_SCRIPT_SHA256SUM, path_to_file)) {
             std::cerr << "Checksum verification failed on 'prepare_assets.sh'." << std::endl
                       << "Either re-compile with `make rebuildhash cleantests` or find the correct version of the file" << std::endl;
             return 1;

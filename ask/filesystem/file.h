@@ -45,4 +45,6 @@ int file_touch(struct file *f);
 int file_initialize_if_empty(struct file *f, const char* with);
 int file_get_contents(struct file* p, char** output);
 
+#define file_is_invalid(f_ptr) f == nullptr || f->is_valid != 1 || f->fd == -1 
+
 #endif

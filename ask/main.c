@@ -23,6 +23,7 @@
 #include "ask.h"
 
 #include <ncurses.h>
+#include <stdlib.h>
 
 int main() {
     initscr();
@@ -33,9 +34,18 @@ int main() {
 
     ask_init();
 
-    command_output_t output;
-    capture_shell_command("ls -a", &output);
-    printf(" output: \"%s\"\n", output);
+    char* output = nullptr;
+    size_t output_size = 0, line_count = 0, *line_indices;
+    capture_shell_command("ls -a", &output, &output_size, &line_count, &line_indices);
+    printf("output: \"%s\"\noutput_size: %lu, line_count: %lu\n", output, output_size, line_count);
+
+    for (size_t i=0; i<line_count; ++i) {
+        printf("first char: %c\n", output[line_indices[i]]);
+    }
+    if (output != nullptr)
+        free(output);
+    if (line_indices != nullptr)
+        free(line_indices);
 
     ask_cleanup();
 

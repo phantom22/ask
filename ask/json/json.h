@@ -45,4 +45,6 @@ int json_get_field(struct json_file* j, const char* key, int(type_check)(int), s
 #define json_get_string(j,key,default_value,output_var_ptr) json_get_field(j,key,json_node_is_string,json_string(default_value),output_var_ptr)
 #define json_get_array(j,key,output_var_ptr) json_get_field(j,key,json_node_is_array,json_array(),output_var_ptr)
 
+#define json_is_invalid(j_ptr) j == nullptr || j->is_valid != 1 || j->root == nullptr
+
 #endif

@@ -38,18 +38,22 @@ struct json_file json_open(struct file* f) {
     return j;
 }
 
-
 int json_dump(struct json_file* j) { 
-    if (file_erase_contents(j->file) == -1)
+    if (json_is_invalid(j))
         return -1;
+    if (file_erase_contents(j->file) == -1 || lseek(j->file->fd, 0, SEEK_SET) == -1) {
+        json_close(j);
+        return -1;
+    }
     return json_dumpfd(j->root, j->file->fd, JSON_INDENT(2));
 }
 
 void json_close(struct json_file *j) {
-    if (j->is_valid) {
-        json_decref(j->root);
-        j->is_valid = 0;
-    }
+    if (json_is_invalid(j))
+        return;
+
+    json_decref(j->root);
+    j->is_valid = 0;
 }
 
 int json_node_is_boolean(int type) {
@@ -65,9 +69,10 @@ int json_node_is_array(int type) {
 }
 
 int json_get_field(struct json_file* j, const char* key, int(type_check)(int), json_t* new_value, json_t** output) {
-    if (output == nullptr) return -1;
-    json_t* obj = json_object_get(j->root, key);
+    if (json_is_invalid(j) || output == nullptr)
+        return -1;
 
+    json_t* obj = json_object_get(j->root, key);
     if (obj != nullptr && type_check(obj->type)) {
         *output = obj;
         return 0;

@@ -118,23 +118,30 @@ struct file file_open(const char *rpath, int open_flags) {
 }
 
 void file_close(struct file *f) {
-    if (f->is_valid) {
-        close(f->fd);
-        f->fd = -1;
-        f->is_valid = 0;
-        if (f->contents != nullptr)
-            free(f->contents);
-    }
+    if (file_is_invalid(f))
+        return;
+    close(f->fd);
+    f->fd = -1;
+    f->is_valid = 0;
+    if (f->contents != nullptr)
+        free(f->contents);
 }
 
 int file_erase_contents(struct file *f) {
-    if (ftruncate(f->fd,0) == -1 || lseek(f->fd, 0, SEEK_SET) == -1)
+    if (file_is_invalid(f))
         return -1;
+    if (lseek(f->fd, 0, SEEK_SET) == -1 || ftruncate(f->fd,0) == -1) {
+        file_close(f);
+        return -1;
+    }
     return 0;
 }
 
 /** Return -1 on fail. */
 int file_touch(struct file *f) {
+    if (file_is_invalid(f))
+        return -1;
+
     struct timespec ts[2];
     ts[1].tv_sec = ts[0].tv_sec = time(NULL);
     ts[1].tv_nsec = ts[0].tv_nsec = 0;
@@ -144,14 +151,12 @@ int file_touch(struct file *f) {
 
 /** Writes to the file described by f only if said file is empty. */
 int file_initialize_if_empty(struct file *f, const char* with) {
-    if (f->is_valid == 0 || with == nullptr)
+    if (file_is_invalid(f) || with == nullptr || lseek(f->fd, 0, SEEK_SET) == -1)
         return -1;
 
     unsigned long wlength = strlen(with);
-    printf("file_initialize_if_empty\n  with: '%s'\n  wlength: %lu\n", with, wlength);
     if (f->is_empty && wlength > 0) {
         if (write(f->fd, with, wlength+1) == -1) {
-            printf("file_initialize_if_empty: failed to write.\n");
             file_close(f);
             return -1;
         }
@@ -163,7 +168,7 @@ int file_initialize_if_empty(struct file *f, const char* with) {
 }
 
 int file_get_contents(struct file* f, char** output) {
-    if (f == nullptr || output == nullptr || f->is_valid != 1 || lseek(f->fd, 0, SEEK_SET) == -1)
+    if (output == nullptr || file_is_invalid(f) || f->size == 0 || lseek(f->fd, 0, SEEK_SET) == -1)
         return -1;
     
     f->contents = (char*)malloc(f->size);

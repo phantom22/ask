@@ -39,4 +39,16 @@ mkdir -p "$FILE_DIR"
 touch "$FILE_DIR/file_a.txt"
 # touch "$FILE_DIR/file_b.txt"
 
+CHECKSUM_DIR="$ASSETS_DIR/checksum"
+mkdir -p "$CHECKSUM_DIR"
+
+touch "$CHECKSUM_DIR/file1.txt"
+echo "random contents just for a test..." > "$CHECKSUM_DIR/file1.txt"
+
+touch "$CHECKSUM_DIR/file2.txt"
+echo "just some random contents for a test." > "$CHECKSUM_DIR/file2.txt"
+
+touch "$CHECKSUM_DIR/file3.txt"
+echo "incredible contents for the purpose of a test!" > "$CHECKSUM_DIR/file3.txt"
+
 exit 0
