@@ -21,6 +21,7 @@
  * in the root directory of this project.
  */
 #include "ask.h"
+#include "io/command.h"
 
 #include <ncurses.h>
 #include <stdlib.h>
@@ -34,18 +35,48 @@ int main() {
 
     ask_init();
 
+    // char* output = nullptr;
+    // size_t output_size = 0, line_count = 0, *line_indices;
+    // capture_shell_command("ls -a", &output, &output_size, &line_count, &line_indices, null_terminate_lines | remove_trailing_new_line);
+
+    // for (size_t i=0; i<line_count; ++i) {
+    //     printf("line: '");
+    //     for (size_t j=line_indices[i]; i<line_count-1&&j<line_indices[i+1] || i==line_count-1&&j<output_size; ++j) {
+    //         if (output[j] == '\n')
+    //             printf("\\n");
+    //         else
+    //             printf("%c", output[j]);
+    //     }
+    //     printf("'\n");
+    // }
+
     char* output = nullptr;
-    size_t output_size = 0, line_count = 0, *line_indices;
-    capture_shell_command("ls -a", &output, &output_size, &line_count, &line_indices);
-    printf("output: \"%s\"\noutput_size: %lu, line_count: %lu\n", output, output_size, line_count);
+    size_t output_size = 0, line_count = 0;
+    char **line_pointers;
+    capture_shell_command("ls -a", &output, &output_size, &line_count, &line_pointers, null_terminate_lines | indices_as_pointers);
+
+    // only with null_terminate_lines flag
+    // for (size_t i=0; i<line_count; ++i) {
+    //     printf("line: '%s'\n", line_pointers[i]);
+    // }
 
     for (size_t i=0; i<line_count; ++i) {
-        printf("first char: %c\n", output[line_indices[i]]);
+        printf("line: '");
+        for (char* j=line_pointers[i]; *j!='\0'; j=j+1) {
+            if (*j == '\n') {
+                printf("\\n");
+                break;
+            }
+            else
+                printf("%c", *j);
+        }
+        printf("'\n");
     }
+
     if (output != nullptr)
         free(output);
-    if (line_indices != nullptr)
-        free(line_indices);
+    if (line_pointers != nullptr)
+        free(line_pointers);
 
     ask_cleanup();
 

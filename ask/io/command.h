@@ -26,9 +26,14 @@
 #include "../types.h"
 
 int shell_command(command_t command);
+
+#define remove_trailing_new_line 1u
+#define null_terminate_lines 2u
+#define indices_as_pointers 4u
+#define ignore_empty_lines 8u
 /** On success output will be a malloc'ed char* that contains the full output of the specified command
   * with no trailing '\n' char. Returns -1 on fail.
   */
-int capture_shell_command(const char* command, char** output, unsigned long* output_size, unsigned long* output_line_count, unsigned long** output_line_indices);
+int capture_shell_command(const char* command, char** output, unsigned long* output_size, unsigned long* output_line_count, void* output_line_indices, unsigned int flags);
 
 #endif

@@ -54,4 +54,40 @@
         varname[i] = 'a'; \
     varname[size-1] = '\0'
 
+#define test_command(cmd_var, output_var, size_var, line_count_var, indices_var_type, indices_var, printf_input, flags, expected_command_output, expected_number_of_lines, line_check_body) \
+    char* output_var; \
+    unsigned long size_var, line_count_var; \
+    indices_var_type indices_var; \
+    char cmd_var[256u]; \
+    ASSERT_GE(snprintf(cmd_var,256u,"printf \"%s\"",printf_input), 0); \
+    EXPECT_EQ(capture_shell_command(cmd_var, &output_var, &size_var, &line_count_var, &indices_var, flags), 0); \
+    if (output_var != nullptr) { \
+        EXPECT_EQ(memcmp(output_var,expected_command_output,sizeof(expected_command_output)), 0); \
+        if (indices_var == nullptr) { \
+            FAIL() << _STRINGIFY(indices_var) << " was not malloced."; \
+        } \
+        else if (line_count_var == expected_number_of_lines) { \
+            line_check_body; \
+            free(indices_var); \
+        } \
+        free(output_var); \
+        EXPECT_EQ(line_count_var, expected_number_of_lines); \
+    } \
+    else \
+        FAIL() << _STRINGIFY(output_var) << " was not malloced."
+
+#define test_command_no_indices(cmd_var, output_var, size_var, line_count_var, printf_input, flags, expected_command_output, expected_number_of_lines) \
+    char* output_var; \
+    unsigned long size_var, line_count_var; \
+    char cmd_var[256u]; \
+    ASSERT_GE(snprintf(cmd_var,256u,"printf \"%s\"",printf_input), 0); \
+    EXPECT_EQ(capture_shell_command(cmd_var, &output_var, &size_var, &line_count_var, nullptr, flags), 0); \
+    if (output_var != nullptr) { \
+        EXPECT_EQ(memcmp(output_var,expected_command_output,sizeof(expected_command_output)), 0); \
+        EXPECT_EQ(line_count_var, expected_number_of_lines); \
+        free(output_var); \
+    } \
+    else \
+        FAIL() << _STRINGIFY(output_var) << " was not malloced."
+
 #endif

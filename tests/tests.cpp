@@ -220,66 +220,116 @@ TEST(Integrity, sha256sum) {
 }
 
 TEST(Command, CaptureShellCommand) {
-    char *output_1, *output_2, *output_3;
-    unsigned long size_1, size_2, size_3, 
-                  line_count1, line_count2, line_count3,
-                  *indices_1, *indices_2, *indices_3;
-    EXPECT_EQ(capture_shell_command("printf \"JUST a TeSt.\n\"", &output_1, &size_1, &line_count1, &indices_1), 0);
-    if (output_1 != nullptr) {
-        EXPECT_EQ(strcmp(output_1,"JUST a TeSt."), 0);
-        free(output_1);
-        if (indices_1 == nullptr) {
-            FAIL() << _STRINGIFY(indices_1) << " was not malloced.";
-        }
-        else {
-            EXPECT_EQ(indices_1[0], 0);
-            free(indices_1);
-        }
-        EXPECT_EQ(line_count1, 1);
-    }
-    else {
-        FAIL() << _STRINGIFY(output_1) << " was not malloced.";
-    }
+    char test_output1[] = "JUST a TeSt.";
+    test_command(full_cmd1, output1, size1, line_count1,
+        unsigned long*, indices1,
+        "JUST a TeSt.", 0,
+        test_output1, 1,
+        EXPECT_EQ(indices1[0], 0)
+    );
 
-    EXPECT_EQ(capture_shell_command("printf \"$HOME\n\"", &output_2, &size_2, &line_count2, &indices_2), 0);
-    if (output_2 != nullptr) {
-        EXPECT_EQ(strcmp(output_2,HOME_DIR), 0);
-        free(output_2);
-        if (indices_2 == nullptr) {
-            FAIL() << _STRINGIFY(indices_2) << " was not malloced.";
-        }
-        else {
-            EXPECT_EQ(indices_2[0], 0);
-            free(indices_2);
-        }
-        EXPECT_EQ(line_count2, 1);
-    }
-    else {
-        FAIL() << _STRINGIFY(output_2) << " was not malloced.";
-    }
+    test_command(
+        full_cmd2, output2, size2, line_count2, 
+        unsigned long*, indices2, 
+        "JUST a TeSt.\n", remove_trailing_new_line,
+        test_output1, 1,
+        EXPECT_EQ(indices2[0], 0)
+    );
 
+    test_command(
+        full_cmd3, output3, size3, line_count3, 
+        unsigned long*, indices3, 
+        "$HOME\n", remove_trailing_new_line,
+        HOME_DIR, 1, 
+        EXPECT_EQ(indices3[0], 0)
+    );
 
-    EXPECT_EQ(capture_shell_command("printf \"Multi\nline\noutput\njust\nfor\nfun!\n\"", &output_3, &size_3, &line_count3, &indices_3), 0);
-    if (output_3 != nullptr) {
-        EXPECT_EQ(strcmp(output_3,"Multi\nline\noutput\njust\nfor\nfun!"), 0);
-        free(output_3);
-        if (indices_3 == nullptr) {
-            FAIL() << _STRINGIFY(indices_3) << " was not malloced.";
-        }
-        else if (line_count3 == 6) {
-            EXPECT_EQ(indices_3[0], 0);
-            EXPECT_EQ(indices_3[1], 6);
-            EXPECT_EQ(indices_3[2], 11);
-            EXPECT_EQ(indices_3[3], 18);
-            EXPECT_EQ(indices_3[4], 23);
-            EXPECT_EQ(indices_3[5], 27);
-            free(indices_3);
-        }
-        EXPECT_EQ(line_count3, 6);
-    }
-    else {
-        FAIL() << _STRINGIFY(output_3) << " was not malloced.";
-    }
+    test_command(
+        full_cmd4, output4, size4, line_count4, 
+        unsigned long*, indices4, 
+        "Multi\nline\noutput\njust\nfor\nfun!\n", remove_trailing_new_line,
+        "Multi\nline\noutput\njust\nfor\nfun!", 6, 
+        EXPECT_EQ(indices4[0], 0);
+        EXPECT_EQ(indices4[1], 6);
+        EXPECT_EQ(indices4[2], 11);
+        EXPECT_EQ(indices4[3], 18);
+        EXPECT_EQ(indices4[4], 23);
+        EXPECT_EQ(indices4[5], 27);
+    );
+
+    test_command(
+        full_cmd5, output5, size5, line_count5, 
+        char**, pointers5, 
+        "A\nfew\nlines!\n", remove_trailing_new_line | indices_as_pointers,
+        "A\nfew\nlines!", 3, 
+        EXPECT_EQ(pointers5[0], &output5[0]);
+        EXPECT_EQ(pointers5[1], &output5[2]);
+        EXPECT_EQ(pointers5[2], &output5[6]);
+    );
+
+    test_command_no_indices(
+        full_cmd6, output6, size6, line_count6, 
+        "A\nB\nC\nD\nE!\n", null_terminate_lines,
+        "A\0B\0C\0D\0E!", 5
+    );
+
+    test_command_no_indices(
+        full_cmd7, output7, size7, line_count7, 
+        "A\nB\nC!", null_terminate_lines,
+        "A\0B\0C!", 3
+    );
+
+    test_command_no_indices(
+        full_cmd8, output8, size8, line_count8, 
+        "", null_terminate_lines,
+        "", 0
+    );
+
+    test_command_no_indices(
+        full_cmd9, output9, size9, line_count9, 
+        " ", null_terminate_lines,
+        " ", 1
+    );
+
+    test_command_no_indices(
+        full_cmd10, output10, size10, line_count10, 
+        "\n\n\n\n", ignore_empty_lines,
+        "", 0
+    );
+
+    test_command_no_indices(
+        full_cmd11, output11, size11, line_count11, 
+        "\n\n\n\na\n\n\nb\n\n\nc\n\nd\ne\n", ignore_empty_lines,
+        "a\nb\nc\nd\ne\n", 5
+    );
+
+    test_command_no_indices(
+        full_cmd12, output12, size12, line_count12, 
+        "\n\n\n\na\n\n\nb\n\n\nc\n\nd\ne\n", ignore_empty_lines | remove_trailing_new_line,
+        "a\nb\nc\nd\ne", 5
+    );
+
+    test_command_no_indices(
+        full_cmd13, output13, size13, line_count13, 
+        "\n\n\n\na\n\n\nb\n\n\nc\n\nd\ne\n", ignore_empty_lines | remove_trailing_new_line | null_terminate_lines,
+        "a\0b\0c\0d\0e", 5
+    );
+
+    test_command(
+        full_cmd14, output14, size14, line_count14, 
+        char**, pointers14, 
+        "\n\n\n\na\n\n\nb\n\n\nc\n\nd\ne\nfg\n\nh\n\n\ni\n\n\n\nj\n", ignore_empty_lines | remove_trailing_new_line | indices_as_pointers | null_terminate_lines,
+        "a\0b\0c\0d\0e\0fg\0h\0i\0j", 9, 
+        EXPECT_EQ(pointers14[0], &output14[0]);
+        EXPECT_EQ(pointers14[1], &output14[2]);
+        EXPECT_EQ(pointers14[2], &output14[4]);
+        EXPECT_EQ(pointers14[3], &output14[6]);
+        EXPECT_EQ(pointers14[4], &output14[8]);
+        EXPECT_EQ(pointers14[5], &output14[10]);
+        EXPECT_EQ(pointers14[6], &output14[13]);
+        EXPECT_EQ(pointers14[7], &output14[15]);
+        EXPECT_EQ(pointers14[8], &output14[17]);
+    );
 }
 
 TEST(Json, Open) {
