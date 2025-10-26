@@ -27,12 +27,33 @@
 
 int shell_command(command_t command);
 
+/** Only affects the last output char (before the null terminator), if said char is '\n'
+  *  the whole output gets shortened by one byte, replacing the new line character
+  *  with a null terminator.
+  */
 #define remove_trailing_new_line 1u
+/** Each new line character contained in the output will be replaced by a null terminator. */
 #define null_terminate_lines 2u
+/** output_line_indices will be an array of all the characters that are at the beginning of a line.
+  * Note that if you free the output, these pointers will point to an invalid memory region.
+  */
 #define indices_as_pointers 4u
+/** Filter out all the empty lines that basically only consist of {'\n','\0\}.
+  * This will also prevent those lines from contributing to the total line count.
+  */
 #define ignore_empty_lines 8u
-/** On success output will be a malloc'ed char* that contains the full output of the specified command
-  * with no trailing '\n' char. Returns -1 on fail.
+/** On success output will point to a malloc'ed char* that contains the full output of the specified command. Returns -1 on fail.
+  * output_size, output_line_count, output_lines and output_line_indices can be omitted by passing a nullptr.
+  *
+  * If output_line_indices is not a nullptr, then it will be malloc'ed and will need to be freed afterwards,
+  *   just like with output.
+  *
+  * The default output type for the output_line_indices is (unsigned long*), but with the
+  *   indices_as_pointers it will be (char**).
+  * remove_trailing_new_line, null_terminate_lines, indices_as_pointers, ignore_empty_lines are available flags.
+  *
+  * If indices_as_pointers was specified: after freeing output, all the pointers in output_line_indices will point
+  *   to an invalid region in memory. 
   */
 int capture_shell_command(const char* command, char** output, unsigned long* output_size, unsigned long* output_line_count, void* output_line_indices, unsigned int flags);
 
