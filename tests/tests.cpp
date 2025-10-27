@@ -20,7 +20,6 @@
  * linking with OpenSSL. For complete details, see the LICENSE file
  * in the root directory of this project.
  */
-#include <jansson.h>
 #ifndef PROJECT_DIR
 #define PROJECT_DIR ""
 #endif
@@ -34,11 +33,14 @@
 #endif
 
 #include <openssl/sha.h>
-#include <string.h>
-
+#include <jansson.h>
 #include <gtest/gtest.h>
 
-// #define ASK_TEST_MODE <-- defined by the Makefile
+#include <string.h>
+
+/* This flag is defined by the Makefile 
+ * but it's useful for proper error linting. */
+#define ASK_TEST_MODE
 #include "../ask/ask.h"
 
 #include "utility/helpers.h"
@@ -47,7 +49,6 @@ file_path_t DIR_CORRECT_ROOT,
             DIR_CORRECT_SAVED,
             FILE_CORRECT_DOT_ASK,
             FILE_CORRECT_DATA_JSON;
-
 
 TEST(FileSystem, ResolvePath) {
     const char *relative_path_a = "hello",
@@ -193,19 +194,25 @@ TEST(File, InitializeIfEmpty) {
     resolve_project_dir(path_b, "tests/assets/file_initialize/file_b.txt");
 
     struct file fa = file_open(path_a, 0);
-    ASSERT_EQ(fa.is_valid, 1);
+    if (fa.is_valid == 1) {
+        const char fa_content_initialization[] = {'j','u','s','t',' ','s','o','m','e',' ','t','e','x','t','!','\0'};
+        EXPECT_EQ(file_initialize_if_empty(&fa, fa_content_initialization), 0);
+        char* fa_contents;
+        EXPECT_EQ(file_get_string_contents(&fa, &fa_contents), 0);
+        if (fa_contents == nullptr)
+            EXPECT_NE(fa_contents, nullptr);
+        else {
+            EXPECT_EQ(strcmp(fa_contents, fa_content_initialization), 0);
+        }
+        file_close(&fa);
+    }
+    else {
+        ASSERT_EQ(fa.is_valid, 1);
+    }
+
     struct file fb = file_open(path_b, 0);
     ASSERT_EQ(fb.is_valid, 1);
 
-    char fa_content_initialization[] = "just some text";
-    file_initialize_if_empty(&fa, fa_content_initialization);
-
-    char* fa_contents;
-    ASSERT_EQ(file_get_contents(&fa, &fa_contents), 0);
-    
-    EXPECT_EQ(strcmp(fa_contents, fa_content_initialization), 0);
-
-    file_close(&fa);
     file_close(&fb);
 }
 
@@ -426,6 +433,59 @@ TEST(Json, Open) {
     EXPECT_EQ(fb_again.is_valid, 0);
 }
 
+TEST(Prompt, ForConfirmation) {
+    EXPECT_EQ(prompt_for_confirmation(nullptr, "anything"), -1);
+    EXPECT_EQ(prompt_for_confirmation(nullptr, ""), -1);
+    test_confirmation("random stuff", 0);
+    test_confirmation("", 0);
+    test_confirmation("y", 1);
+    test_confirmation("Y", 1);
+    test_confirmation("n", 0);
+}
+
+TEST(Prompt, ForSelection_WithCaptureShellCommand) {
+    test_command(
+        full_cmd1, output1, size1, line_count1, 
+        char**, pointers1, 
+        "element1\nelement2\nelement3\nelement4", indices_as_pointers | null_terminate_lines,
+        "element1\0element2\0element3\0element4", 4, 
+        EXPECT_EQ(pointers1[0], &output1[0]);
+        EXPECT_EQ(pointers1[1], &output1[9]);
+        EXPECT_EQ(pointers1[2], &output1[18]);
+        EXPECT_EQ(pointers1[3], &output1[27]);
+
+        test_selection(pointers1, line_count1, "0", -1);
+        test_selection(pointers1, line_count1, "5", -1);
+        test_selection(pointers1, line_count1, "", -1);
+        test_selection(pointers1, line_count1, "abcd", -1);
+        test_selection(pointers1, line_count1, "1", 0);
+        test_selection(pointers1, line_count1, "2", 1);
+        test_selection(pointers1, line_count1, "3", 2);
+        test_selection(pointers1, line_count1, "4", 3);
+
+        EXPECT_EQ(prompt_for_selection(nullptr, "Non-null question", pointers1, line_count1, "1"), -1);
+        EXPECT_EQ(prompt_for_selection("Non-null selection title", nullptr, pointers1, line_count1, "1"), -1);
+        EXPECT_EQ(prompt_for_selection("Non-null selection title", "Non-null question", nullptr, line_count1, "1"), -1);
+        EXPECT_EQ(prompt_for_selection("Non-null selection title", "Non-null question", pointers1, 0, "1"), -1);
+        EXPECT_EQ(prompt_for_selection(nullptr, nullptr, nullptr, 0, "1"), -1);
+    );
+
+    const char *example_command_output = "a\0b\0c\0d\0e";
+    const unsigned long example_output_size = sizeof("a\0b\0c\0d\0e");
+    const unsigned long example_line_count = 5;
+    const char* example_pointers[example_line_count] = { &example_command_output[0], &example_command_output[2], &example_command_output[4], &example_command_output[6], &example_command_output[8] };
+    test_selection(const_cast<char**>(example_pointers), example_line_count, "0", -1);
+    test_selection(const_cast<char**>(example_pointers), example_line_count, "", -1);
+    test_selection(const_cast<char**>(example_pointers), example_line_count, "-1", -1);
+    test_selection(const_cast<char**>(example_pointers), example_line_count, "6", -1);
+    test_selection(const_cast<char**>(example_pointers), example_line_count, "abcd", -1);
+    test_selection(const_cast<char**>(example_pointers), example_line_count, "1", 0);
+    test_selection(const_cast<char**>(example_pointers), example_line_count, "2", 1);
+    test_selection(const_cast<char**>(example_pointers), example_line_count, "3", 2);
+    test_selection(const_cast<char**>(example_pointers), example_line_count, "4", 3);
+    test_selection(const_cast<char**>(example_pointers), example_line_count, "5", 4);
+}
+
 int main(int argc, char **argv) {
     if (strcmp(HOME_DIR,"") == 0 || strcmp(PROJECT_DIR,"") == 0 || strcmp(SHELL_SCRIPT_SHA256SUM, "") == 0) {
         std::cerr << "The tests must be compiled with:       " << std::endl 
@@ -460,7 +520,7 @@ int main(int argc, char **argv) {
 
         _resolve_project_dir(prepare_assets_sh, "tests/prepare_assets.sh", return 1);
 
-        file_path_t full_command;
+        char full_command[256];
         if (snprintf(full_command, SIZE_FILE_PATH, "%s \"%s\"", prepare_assets_sh, PROJECT_DIR) < 0) {
             std::cerr << "snprintf failed to build the command to run 'tests/prepare_assets.sh'." << std::endl;
             return 1;

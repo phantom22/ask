@@ -26,6 +26,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+file_path_t DIR_ROOT;
+file_path_t DIR_SAVED;
+unsigned int LENGTH_ROOT_DIR;
+unsigned int LENGTH_SAVED_DIR;
+unsigned int SIZE_MAX_SUBDIRECTORY;
+unsigned int MAX_CONVERSATION_SIZE;
+file_path_t FILE_DOT_ASK;
+file_path_t FILE_DATA_JSON;
+
 int filesystem_resolve_constants() {
     char* home = getenv("HOME");
     int r_length = snprintf(DIR_ROOT, SIZE_FILE_PATH, "%s/.ask", home),
@@ -65,7 +74,7 @@ int filesystem_resolve_constants() {
 /** Returns -1 on fail. */
 int filesystem_resolve_path(const char* rel_path, file_path_t* output) {
     if (rel_path == nullptr || output == nullptr) return -1;
-    else if (strlen(rel_path) > SIZE_MAX_SUBDIRECTORY - 1) return -1;
+    else if (strnlen(rel_path, SIZE_FILE_PATH) > SIZE_MAX_SUBDIRECTORY - 1) return -1;
     return -(snprintf(*output, SIZE_FILE_PATH, "%s/%s", DIR_ROOT, rel_path) < 0);
 }
 

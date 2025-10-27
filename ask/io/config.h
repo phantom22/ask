@@ -25,6 +25,10 @@
 
 #include "../types.h"
 
-int config_get_dot_ask(model_name_t* model, int* output_md, int* explain_flags, aliases_t* aliases, int* alias_count);
+int config_get_dot_ask(
+    model_provider_name_t* provider, llm_model_name_t* model,
+    command_t* cmd_to_list_models, command_t* cmd_to_talk_to_models,
+    int* output_md, int* explain_flags, aliases_t* aliases, int* alias_count
+);
 
 #endif

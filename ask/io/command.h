@@ -23,10 +23,6 @@
 #ifndef COMMAND_H_
 #define COMMAND_H_
 
-#include "../types.h"
-
-int shell_command(command_t command);
-
 /** Only affects the last output char (before the null terminator), if said char is '\n'
   *  the whole output gets shortened by one byte, replacing the new line character
   *  with a null terminator.
@@ -55,6 +51,11 @@ int shell_command(command_t command);
   * If indices_as_pointers was specified: after freeing output, all the pointers in output_line_indices will point
   *   to an invalid region in memory. 
   */
-int capture_shell_command(const char* command, char** output, unsigned long* output_size, unsigned long* output_line_count, void* output_line_indices, unsigned int flags);
+int capture_shell_command(
+    const char* command, 
+    char** output, unsigned long* output_size,
+    unsigned long* output_line_count, void* output_line_indices, 
+    unsigned int flags
+);
 
 #endif

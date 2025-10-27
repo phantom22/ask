@@ -28,11 +28,7 @@
 
 #define COMMAND_OUTPUT_BLOCK_SIZE 1024lu
 
-inline int shell_command(command_t command) {
-    return system(command);
-}
-
-inline int capture_shell_command(const char* command, char** output, unsigned long* output_size, unsigned long* output_line_count, void* output_line_indices, unsigned int flags) {
+int capture_shell_command(const char* command, char** output, unsigned long* output_size, unsigned long* output_line_count, void* output_line_indices, unsigned int flags) {
     if (output == nullptr)
         return -1;
     
@@ -46,14 +42,21 @@ inline int capture_shell_command(const char* command, char** output, unsigned lo
          *new_line_indices = nullptr;
     unsigned long  malloced_indices = 0,
                    new_malloced_indices = 0;
-    unsigned int indices_to_pointers = 0,
-                 skip_empty_lines = flags & ignore_empty_lines;
+    unsigned int flag_indices_to_pointers = 0,
+                 flag_skip_empty_lines = flags & ignore_empty_lines,
+                 flag_null_terminate_lines = flags & null_terminate_lines,
+                 flag_remove_trailing_new_line = flags & remove_trailing_new_line;
     if (buffer == nullptr)
         return -1;
     if (output_line_indices != nullptr) {
         malloced_indices = 15;
         line_indices = (unsigned long*)malloc(sizeof(unsigned long) * malloced_indices);
-        indices_to_pointers = flags & indices_as_pointers;
+        if (line_indices == nullptr) {
+            free(buffer);
+            pclose(fp);
+            return -1;
+        }
+        flag_indices_to_pointers = flags & indices_as_pointers;
     }
 
     buffer[0] = '\0';
@@ -70,11 +73,9 @@ inline int capture_shell_command(const char* command, char** output, unsigned lo
                   line_count = 0;
 
     char *line = nullptr;
-    long chars_read;
-
-    unsigned int terminate_lines = flags & null_terminate_lines;
+    long chars_read = 0;
     while ((chars_read = getline(&line, &line_size, fp)) != -1) {
-        if (skip_empty_lines && chars_read == 1)
+        if (flag_skip_empty_lines && chars_read == 1)
             continue;
         ++line_count;
         bytes_read = chars_read + 1;
@@ -95,7 +96,7 @@ inline int capture_shell_command(const char* command, char** output, unsigned lo
             buffer_size = new_buffer_size;
             buffer = new_buffer;
         }
-        if (terminate_lines && line[bytes_read-2] == '\n') {
+        if (flag_null_terminate_lines && line[bytes_read-2] == '\n') {
             line[bytes_read-2] = '\0';
             bytes_read = bytes_read - 1;
         }
@@ -127,7 +128,7 @@ inline int capture_shell_command(const char* command, char** output, unsigned lo
     pclose(fp);
 
     if (bytes_written < buffer_size) {
-        if (flags & remove_trailing_new_line && buffer[bytes_written-2] == '\n') {
+        if (flag_remove_trailing_new_line && buffer[bytes_written-2] == '\n') {
             buffer[bytes_written-2] = '\0';
             new_buffer = (char*)realloc(buffer, bytes_written-1);
             buffer_size = bytes_written-1;
@@ -156,7 +157,7 @@ inline int capture_shell_command(const char* command, char** output, unsigned lo
         *output_line_count = line_count;
 
     if (output_line_indices != nullptr) {
-        if (indices_to_pointers) {
+        if (flag_indices_to_pointers) {
             new_line_indices = (char**)malloc(sizeof(char*) * line_count);
             if (new_line_indices == nullptr) {
                 free(buffer);
@@ -174,14 +175,15 @@ inline int capture_shell_command(const char* command, char** output, unsigned lo
         else if (line_count < malloced_indices) {
             //printf("[FIT] old_length: %lu, new_length: %lu\n", malloced_indices, line_count);
             new_line_indices = (unsigned long*)realloc(line_indices, sizeof(unsigned long) * line_count);
+
             if (new_line_indices == nullptr) {
                 free(buffer);
                 free(line_indices);
                 return -1;
             }
             line_indices = new_line_indices;
-            *((unsigned long**)output_line_indices) = line_indices;
         }
+        *((unsigned long**)output_line_indices) = line_indices;
     }
 
     return 0;

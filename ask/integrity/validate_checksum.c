@@ -57,6 +57,7 @@ int sha256sum(struct file* f, hex_checksum_t* output) {
 
     unsigned char sha256[EVP_MAX_MD_SIZE];
     if (EVP_DigestFinal_ex(ctx, sha256, nullptr) != 1) {
+        printf("ADGADGAGEJGQIGJEHLTRIQUEHGTKIEUYTGEKQIUTYEQGKLTIQEUGHTYEQ\n");
         EVP_MD_CTX_free(ctx);
         file_close(f);
         return -1;

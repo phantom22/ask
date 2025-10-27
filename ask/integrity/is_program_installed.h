@@ -20,12 +20,16 @@
  * linking with OpenSSL. For complete details, see the LICENSE file
  * in the root directory of this project.
  */
-#include "config.h"
+#ifndef IS_PROGRAM_INSTALLED_H_
+#define IS_PROGRAM_INSTALLED_H_
 
-int config_get_dot_ask(
-    model_provider_name_t* provider, llm_model_name_t* model, 
-    command_t* cmd_to_list_models, command_t* cmd_to_talk_to_models,
-    int* output_md, int* explain_flags, aliases_t* aliases, int* alias_count
-) {
-    return 0;
+#include <stdio.h>
+#include <stdlib.h>
+
+inline int is_program_installed(const char* program_name) {
+    char command[256];
+    snprintf(command, 256, "command -v %s >/dev/null 2>&1", program_name);
+    return system(command) == 0;
 }
+
+#endif

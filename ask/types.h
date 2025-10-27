@@ -29,11 +29,14 @@ typedef char file_path_t[SIZE_FILE_PATH];
 #define HEX_CHECKSUM_SIZE 65lu
 typedef char hex_checksum_t[HEX_CHECKSUM_SIZE];
 
-#define COMMAND_SIZE 128u
+#define COMMAND_SIZE 256u
 typedef char command_t[COMMAND_SIZE];
 
-#define OLLAMA_MODEL_SIZE 128u
-typedef char model_name_t[OLLAMA_MODEL_SIZE];
+#define MODEL_PROVIDER_NAME_SIZE 64u
+typedef char model_provider_name_t[MODEL_PROVIDER_NAME_SIZE];
+
+#define LLM_MODEL_NAME_SIZE 128u
+typedef char llm_model_name_t[LLM_MODEL_NAME_SIZE];
 
 #define ALIAS_KEY_SIZE 64u
 typedef char alias_key_t[ALIAS_KEY_SIZE];

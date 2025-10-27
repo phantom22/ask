@@ -25,6 +25,13 @@
 
 // #include "../types.h"
 
-// int prompt_for_model(model_name_t* output);
+#ifndef ASK_TEST_MODE
+int prompt_for_confirmation(const char* question_text);
+int prompt_for_selection(const char* selection_block_title, const char* question_text, char** string_list, unsigned long list_size);
+#else
+int prompt_for_confirmation(const char* question_text, const char* user_input);
+int prompt_for_selection(const char* selection_block_title, const char* question_text, char** string_list, unsigned long list_size, const char* user_input);
+#endif
+// int prompt_for_model(llm_model_name_t* output); 
 
 #endif

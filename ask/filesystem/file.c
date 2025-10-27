@@ -123,8 +123,10 @@ void file_close(struct file *f) {
     close(f->fd);
     f->fd = -1;
     f->is_valid = 0;
-    if (f->contents != nullptr)
+    if (f->contents != nullptr) {
         free(f->contents);
+        f->contents = nullptr;
+    }
 }
 
 int file_erase_contents(struct file *f) {
@@ -149,14 +151,23 @@ int file_touch(struct file *f) {
     return futimens(f->fd, ts);
 }
 
-/** Writes to the file described by f only if said file is empty. */
+/** Writes to the file described by f only if said file is empty.
+  * Note that this function writes only strlen(with) bytes into the specified file;
+  *   when retrieving its contents you must malloc +1 the size to add the null terminator.
+  */
 int file_initialize_if_empty(struct file *f, const char* with) {
     if (file_is_invalid(f) || with == nullptr || lseek(f->fd, 0, SEEK_SET) == -1)
         return -1;
 
+    if (f->is_empty != 1 || with[0] == '\0')
+        return 0;
+
     unsigned long wlength = strlen(with);
-    if (f->is_empty && wlength > 0) {
-        if (write(f->fd, with, wlength+1) == -1) {
+    if (wlength > 0) {
+        /* writing strlen prevents from embedding the EOF char into the target file
+         * which would mess with text editors.
+         */
+        if (write(f->fd, with, wlength) == -1) {
             file_close(f);
             return -1;
         }
@@ -167,15 +178,20 @@ int file_initialize_if_empty(struct file *f, const char* with) {
     return 0;
 }
 
-int file_get_contents(struct file* f, char** output) {
+/** The returned contents are of size f->size+1 to account for the added null terminator. 
+  * the contents are freed automatically on file_close(&f).
+  */
+int file_get_string_contents(struct file* f, char** output) {
     if (output == nullptr || file_is_invalid(f) || f->size == 0 || lseek(f->fd, 0, SEEK_SET) == -1)
         return -1;
     
-    f->contents = (char*)malloc(f->size);
+    f->contents = (char*)malloc(f->size+1);
     if (f->contents == nullptr || read(f->fd, f->contents, f->size) == -1) {
         file_close(f);
         return -1;
     }
+
+    f->contents[f->size] = '\0';
 
     *output = f->contents;
     return 0;

@@ -22,56 +22,48 @@
  */
 #include "ask.h"
 #include "io/command.h"
+#include "io/prompt.h"
 
 #include <ncurses.h>
 #include <stdlib.h>
 
 int main() {
-    initscr();
-    printw("Hello World! Press any key to exit...");
-    refresh();
-    getch();
-    endwin();
+    // initscr();
+    // printw("Hello World! Press any key to exit...");
+    // refresh();
+    // getch();
+    // endwin();
 
-    ask_init();
+    if (ask_init() == -1) {
+        return 1;
+    }
 
-    // char* output = nullptr;
-    // size_t output_size = 0, line_count = 0, *line_indices;
-    // capture_shell_command("ls -a", &output, &output_size, &line_count, &line_indices, null_terminate_lines | remove_trailing_new_line);
-
-    // for (size_t i=0; i<line_count; ++i) {
-    //     printf("line: '");
-    //     for (size_t j=line_indices[i]; i<line_count-1&&j<line_indices[i+1] || i==line_count-1&&j<output_size; ++j) {
-    //         if (output[j] == '\n')
-    //             printf("\\n");
-    //         else
-    //             printf("%c", output[j]);
-    //     }
-    //     printf("'\n");
-    // }
-
+    unsigned int flags = null_terminate_lines;
     char* output = nullptr;
     size_t output_size = 0, line_count = 0;
-    char **line_pointers;
-    capture_shell_command("ls -a", &output, &output_size, &line_count, &line_pointers, null_terminate_lines | indices_as_pointers);
+    void **line_pointers;
+    // "ollama list | sed '1d' | awk '{print $1}'"
+    int r = capture_shell_command("ollama list | sed '1d' | awk '{print $1}'", &output, &output_size, &line_count, &line_pointers, flags);
 
-    // only with null_terminate_lines flag
-    // for (size_t i=0; i<line_count; ++i) {
-    //     printf("line: '%s'\n", line_pointers[i]);
+    // int sel = prompt_for_selection("Available models:", "Choose the model that you want to use", line_pointers, line_count);
+    // if (sel == -1) {
+    //     printf("Invalid selection.\n");
+    //     return 1;
+    // }
+    // else {
+    //     printf("selected: '%s'\n", line_pointers[sel]);
     // }
 
-    for (size_t i=0; i<line_count; ++i) {
-        printf("line: '");
-        for (char* j=line_pointers[i]; *j!='\0'; j=j+1) {
-            if (*j == '\n') {
-                printf("\\n");
-                break;
-            }
-            else
-                printf("%c", *j);
-        }
-        printf("'\n");
-    }
+    // int agrees = prompt_for_confirmation("Are you totally sure about this");
+
+    // agrees ? printf("yes\n") : printf("no\n");
+
+    if (line_pointers == nullptr)
+        printf("is empty\n");
+    else if (flags & indices_as_pointers)
+        printf("%s\n", ((char**)line_pointers)[0]);
+    else
+        printf("%lu\n", ((unsigned long*)line_pointers)[0]);
 
     if (output != nullptr)
         free(output);

@@ -90,4 +90,9 @@
     else \
         FAIL() << _STRINGIFY(output_var) << " was not malloced."
 
+#define test_selection(line_pointers_var, line_count_var, user_input, expected_value) \
+    EXPECT_EQ(prompt_for_selection("Non-null selection title", "Non-null question", line_pointers_var, line_count_var, user_input), expected_value)
+
+#define test_confirmation(user_input, expected_value) EXPECT_EQ(prompt_for_confirmation("Non-null question", user_input), expected_value)
+
 #endif

@@ -29,6 +29,9 @@ sudo apt install libssl-dev libncurses5-dev libncursesw5-dev libjansson-dev libg
 
 # For the shell script
 sudo apt install jq
+
+# For the memory leak tests
+sudo apt install valgrind
 ```
 ### Fedora
 ```shell
@@ -37,6 +40,9 @@ sudo dnf install openssl-devel ncurses-devel jansson-devel gtest-devel
 
 # For the shell script
 sudo dnf install jq
+
+# For the memory leak tests
+sudo dnf install valgrind
 ```
 
 ## Building
@@ -56,6 +62,14 @@ make tests
 make cleantests
 # needed after modifying tests/prepare_assets.sh or the tests won't run
 make rebuildhash cleantests 
+```
+
+For the memory leak tests:
+```shell
+# for the main program
+valgrind --leak-check=full --track-origins=yes --show-leak-kinds=all --suppressions=openssl.supp ./bin/ask
+# for the tests
+valgrind --leak-check=full --track-origins=yes --show-leak-kinds=all --suppressions=openssl.supp ./tests/test
 ```
 
 ## Usage

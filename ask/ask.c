@@ -21,22 +21,22 @@
  * in the root directory of this project.
  */
 #include "ask.h"
-#include "filesystem/filesystem.h"
 
-file_path_t DIR_ROOT;
-file_path_t DIR_SAVED;
-unsigned int LENGTH_ROOT_DIR;
-unsigned int LENGTH_SAVED_DIR;
-unsigned int SIZE_MAX_SUBDIRECTORY;
-unsigned int MAX_CONVERSATION_SIZE;
-file_path_t FILE_DOT_ASK;
-file_path_t FILE_DATA_JSON;
+int ask_is_initialized = 0;
 
 int init_constants() {
     return filesystem_resolve_constants();
 }
 
 int ask_init() {
+    if (ask_is_initialized == 1)
+        return -1;
+    ask_is_initialized = 1;
+
+    if (is_program_installed("ollama") == 0) {
+        printf("ollama is not installed on this system.\n");
+        return -1;
+    }
     return init_constants();
 }
 

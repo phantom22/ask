@@ -33,10 +33,14 @@ extern "C" {
 
 #include "filesystem/filesystem.h"
 #include "filesystem/file.h"
-#include "io/command.h"
 #include "integrity/validate_checksum.h"
+#include "integrity/is_program_installed.h"
+#include "io/command.h"
+#include "io/config.h"
+#include "io/prompt.h"
 #include "json/json.h"
 
+/** Returns -1 on fail. */
 int ask_init();
 void ask_cleanup();
 
