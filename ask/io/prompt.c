@@ -68,7 +68,8 @@ int prompt_for_selection(const char* selection_block_title, const char* question
     printf("%s", full_question_text);
     
     char user_input[32];
-    fgets(user_input, 32, stdin);
+    if (fgets(user_input, 32, stdin) == nullptr)
+        return -1;
 
     int user_selection = atoi(user_input);
     return (user_selection <= 0 || user_selection > list_size) ? -1 : user_selection - 1;

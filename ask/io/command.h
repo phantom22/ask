@@ -50,6 +50,9 @@
   *
   * If indices_as_pointers was specified: after freeing output, all the pointers in output_line_indices will point
   *   to an invalid region in memory. 
+  *
+  * Finally if output was empty, verifiable by checking either output or
+  *   output_line_count == 0, output_line_indices will be freed automatically.
   */
 int capture_shell_command(
     const char* command, 

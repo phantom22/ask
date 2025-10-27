@@ -127,6 +127,26 @@ int capture_shell_command(const char* command, char** output, unsigned long* out
     free(line);
     pclose(fp);
 
+    if (line_count == 0) {
+        int err = 0;
+        new_buffer = (char*)realloc(buffer, 1);
+        if (new_buffer == nullptr) {
+            free(buffer);
+            err = 1;
+        }
+
+        *output = new_buffer;
+
+        *output_line_count = 0;
+
+        if (line_indices != nullptr) {
+            free(line_indices);
+            *((void**)output_line_indices) = nullptr;
+        }
+
+        return -err;
+    }
+
     if (bytes_written < buffer_size) {
         if (flag_remove_trailing_new_line && buffer[bytes_written-2] == '\n') {
             buffer[bytes_written-2] = '\0';
